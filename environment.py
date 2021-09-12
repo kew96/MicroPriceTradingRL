@@ -75,7 +75,7 @@ class Env(gym.Env):
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
-        return self.current_state.values.tolist()
+        return self.current_state.values
 
     def render(self, mode="human"):
         return None
