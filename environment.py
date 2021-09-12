@@ -15,7 +15,7 @@ class Env(gym.Env):
         self.ite = steps or len(data)//2 - 1
         self.states = self._simulation()
 
-        self.state_space = spaces.Box(low=-100, high=100, shape=(1,))
+        self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
         self.action_space = spaces.Discrete(100)
         self._max_episode_steps = 10_000
 
@@ -74,6 +74,8 @@ class Env(gym.Env):
         self.last_state = None
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
+
+        return self.current_state.values.tolist()
 
     def render(self, mode="human"):
         return None
