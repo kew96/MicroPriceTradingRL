@@ -11,20 +11,22 @@ class Env(gym.Env):
         self.df = data
         self.prob = prob
         self.reward_func = reward_func
-        steps = steps or len(data)//2 - 1
+        self.ite = steps or len(data)//2 - 1
         self.states = self._simulation(steps)
 
         self.state_index = 0
+        self.last_state = None
+        self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
-    def _simulation(self, ite):
+    def _simulation(self):
         # init: initial states. '100' means simuidual and imbalances states. The later two 100 are initial asset prices
 
         simu = [[[str(self.df.current_state.iloc[0]), self.df.mid1.iloc[0], self.df.mid2.iloc[0]]]]
         tick = 0.01
         current = simu[0]
 
-        for i in range(ite):
+        for i in range(self.ite):
             state_in = current[0]
             total_prob = self.prob.loc[state_in, :].sum()
             random_N = np.random.uniform(0, total_prob)
@@ -48,10 +50,26 @@ class Env(gym.Env):
         return simu
 
     def step(self, action):
-        pass
+        self.last_state = self.current_state
+        self.state_index += 1
+        self.current_state = self.states.iloc[self.state_index, :]
+        self.terminal = self.state_index == len(self.states)-1
+
+        return (
+            self.current_state,
+            self.reward_func(action, self.last_state, self.current_state),
+            self.terminal,
+            {}
+        )
 
     def reset(self):
-        pass
+        self.states = self._simulation()
+
+        self.state_index = 0
+        self.last_state = None
+        self.current_state = self.states.iloc[self.state_index, :]
+        self.terminal = False
 
     def render(self, mode="human"):
-        pass
+        return None
+
