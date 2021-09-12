@@ -1,3 +1,5 @@
+from collections import Callable
+
 import gym
 import numpy as np
 import pandas as pd
@@ -5,7 +7,7 @@ import pandas as pd
 
 class Env(gym.Env):
 
-    def __init__(self, data, prob, reward_func, steps=None):
+    def __init__(self, data: pd.DataFrame, prob: pd.DataFrame, reward_func: Callable, steps: int = 100):
         self.df = data
         self.prob = prob
         self.reward_func = reward_func
