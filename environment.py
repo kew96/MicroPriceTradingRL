@@ -1,6 +1,7 @@
 from collections import Callable
 
 import gym
+from gym import spaces
 import numpy as np
 import pandas as pd
 
@@ -13,6 +14,10 @@ class Env(gym.Env):
         self.reward_func = reward_func
         self.ite = steps or len(data)//2 - 1
         self.states = self._simulation()
+
+        self.state_space = spaces.Box(low=-100, high=100, shape=(1,))
+        self.action_space = spaces.Discrete(100)
+        self._max_episode_steps = 10_000
 
         self.state_index = 0
         self.last_state = None
@@ -56,7 +61,7 @@ class Env(gym.Env):
         self.terminal = self.state_index == len(self.states)-1
 
         return (
-            self.current_state,
+            self.current_state.values.tolist(),
             self.reward_func(action, self.last_state, self.current_state),
             self.terminal,
             {}
