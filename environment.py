@@ -4,6 +4,7 @@ import gym
 from gym import spaces
 import numpy as np
 import pandas as pd
+import jax.numpy as jnp
 
 
 class Env(gym.Env):
@@ -52,6 +53,7 @@ class Env(gym.Env):
                 raise ValueError("Wrong price movement")
             simu.append(current)
         simu = pd.DataFrame(simu, columns=['res_imb_states', 'price_1', 'price_2'])
+        simu.res_imb_states = simu.res_imb_states.factorize()[0]
         return simu
 
     def step(self, action):
@@ -61,7 +63,7 @@ class Env(gym.Env):
         self.terminal = self.state_index == len(self.states)-1
 
         return (
-            self.current_state.values.tolist(),
+            jnp.asarray(self.current_state.values),
             self.reward_func(action, self.last_state, self.current_state),
             self.terminal,
             {}
@@ -75,7 +77,7 @@ class Env(gym.Env):
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
-        return self.current_state.values
+        return jnp.asarray(self.current_state.values)
 
     def render(self, mode="human"):
         return None
