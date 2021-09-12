@@ -12,7 +12,7 @@ class Env(gym.Env):
         self.prob = prob
         self.reward_func = reward_func
         self.ite = steps or len(data)//2 - 1
-        self.states = self._simulation(steps)
+        self.states = self._simulation()
 
         self.state_index = 0
         self.last_state = None
