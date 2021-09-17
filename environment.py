@@ -17,13 +17,16 @@ class Env(gym.Env):
         self.states = self._simulation()
 
         self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
-        self.action_space = spaces.Discrete(100)
+        self.action_space = spaces.Discrete(4)
         self._max_episode_steps = 10_000
 
         self.state_index = 0
         self.last_state = None
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
+
+        ## cash, SH position, SDS position
+        self.portfolio = [0,0,0]
 
     def _simulation(self):
         # init: initial states. '100' means simuidual and imbalances states. The later two 100 are initial asset prices
@@ -62,12 +65,37 @@ class Env(gym.Env):
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = self.state_index == len(self.states)-1
 
+        self.update_portfolio(action)
         return (
             jnp.asarray(self.current_state.values),
-            self.reward_func(action, self.last_state, self.current_state),
+            np.sum(self.portfolio),
             self.terminal,
             {}
         )
+
+    def update_portfolio(self, action):
+        current_portfolio = self.portfolio
+        current_portfolio[1] = self.current_state[1]/self.last_state[1]
+        current_portfolio[2] = self.current_state[2] / self.last_state[2]
+
+        ## buy SH
+        if action == 0:
+            current_portfolio[1] += 1000
+            current_portfolio[0] -= 1000
+        ## sell SH
+        elif action ==1:
+            current_portfolio[1] -= 1000
+            current_portfolio[0] += 1000
+        ## buy SDS
+        elif action == 2:
+            current_portfolio[2] += 500
+            current_portfolio[0] -= 500
+        ## sell SDS
+        else: ##action == 3
+            current_portfolio[2] -= 500
+            current_portfolio[0] += 500
+
+        self.portfolio = current_portfolio
 
     def reset(self):
         self.states = self._simulation()
