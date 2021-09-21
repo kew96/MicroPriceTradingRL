@@ -28,7 +28,7 @@ class Env(gym.Env):
         self.states, self.mapping = self._simulation()
 
         self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
-        self.action_space = spaces.Discrete(1)
+        self.action_space = spaces.Discrete(2)
         self._max_episode_steps = 10_000
 
         self.state_index = 0
@@ -138,13 +138,14 @@ class Env(gym.Env):
                 sds = -abs(self.start_allocation[1])
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.last_state[1], sds / self.last_state[2]]
-        else:
+        elif action == 1:
             if self.shares[0] > 0:
                 cash = self.liquidate()
                 sh = -abs(self.start_allocation[0])
                 sds = abs(self.start_allocation[1])
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.last_state[1], sds / self.last_state[2]]
+
 
         '''
         # try to take position in SH but already have one
@@ -271,22 +272,26 @@ class Env(gym.Env):
             fig.savefig(path.joinpath('share_history.png'), format='png')
 
     def reset(self):
-        self.states = self._simulation()
+        self.states, self.mapping = self._simulation()
 
         self.state_index = 0
         self.last_state = None
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
+        # cash, SH position, SDS position
+        self.portfolio = [sum(self.start_allocation), *self.start_allocation]
+        self.current_portfolio_history = [self.portfolio]
+
+        self.shares = [
+            self.start_allocation[0] / self.current_state[1],
+            self.start_allocation[1] / self.current_state[2]
+        ]
+        self.current_share_history = [self.shares]
+
         self.steps_since_trade = 0
-        self.shares = [0, 0]
-        self.last_share_history = self.current_share_history
-        self.current_share_history = [[0, 0]]
-        self.last_portfolio_history = self.current_portfolio_history
-        self.current_portfolio_history = [[0, 0, 0]]
-        self.portfolio = [0, 0, 0]
-        self.actions_history = self.actions
         self.actions = list()
+        self.actions_history = list()
 
         return jnp.asarray(self.current_state.values)
 
