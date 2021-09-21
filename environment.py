@@ -32,7 +32,6 @@ class Env(gym.Env):
         self._max_episode_steps = 10_000
 
         self.state_index = 0
-        self.last_state = None
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
@@ -40,7 +39,7 @@ class Env(gym.Env):
         self.start_allocation = start_allocation
 
         # cash, SH position, SDS position
-        self.portfolio = [sum(start_allocation), *start_allocation]
+        self.portfolio = [-sum(start_allocation), *start_allocation]
         self.current_portfolio_history = [self.portfolio]
 
         self.shares = [start_allocation[0]/self.current_state[1], start_allocation[1]/self.current_state[2]]
@@ -91,17 +90,17 @@ class Env(gym.Env):
             simu.append(current)
         simu = pd.DataFrame(simu, columns=['res_imb_states', 'price_1', 'price_2'])
         codes, mapping = simu.res_imb_states.factorize()
-        mapping = dict(zip(codes, simu.res_imb_states))
+        mapping = dict(zip(simu.res_imb_states, codes))
         simu.res_imb_states = codes
         return simu, mapping
 
     def step(self, action):
-        self.last_state = self.current_state
+        self.portfolio = self.trade(action)
+
         self.state_index += 1
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = self.state_index == len(self.states) - 1
 
-        self.portfolio = self.trade(action)
         self.portfolio = self.update_portfolio()
 
         return (
@@ -136,15 +135,17 @@ class Env(gym.Env):
                 cash = self.liquidate()
                 sh = abs(self.start_allocation[0])
                 sds = -abs(self.start_allocation[1])
+                cash -= sh + sds
                 self.portfolio = [cash, sh, sds]
-                self.shares = [sh / self.last_state[1], sds / self.last_state[2]]
+                self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
         elif action == 1:
             if self.shares[0] > 0:
                 cash = self.liquidate()
                 sh = -abs(self.start_allocation[0])
                 sds = abs(self.start_allocation[1])
+                cash -= sds + sh
                 self.portfolio = [cash, sh, sds]
-                self.shares = [sh / self.last_state[1], sds / self.last_state[2]]
+                self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
 
 
         '''
@@ -272,15 +273,17 @@ class Env(gym.Env):
             fig.savefig(path.joinpath('share_history.png'), format='png')
 
     def reset(self):
+        self.last_share_history = self.current_share_history
+        self.last_portfolio_history = self.current_portfolio_history
+
         self.states, self.mapping = self._simulation()
 
         self.state_index = 0
-        self.last_state = None
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
         # cash, SH position, SDS position
-        self.portfolio = [sum(self.start_allocation), *self.start_allocation]
+        self.portfolio = [-sum(self.start_allocation), *self.start_allocation]
         self.current_portfolio_history = [self.portfolio]
 
         self.shares = [
