@@ -101,6 +101,25 @@ class Env(gym.Env):
         shares = [1000/self.last_state[1], 500/self.last_state[2]]
         returns = [self.current_state[1]/self.last_state[1], self.current_state[2]/self.last_state[2]]
 
+        '''
+        ## action 0: go Long Short
+        if action == 0:
+            if self.shares[0] > 0:
+                ## do nothing, already Long short
+            else:
+                ## self.shares[0] is negative
+                ## liquidate current portfolio and go long short
+        
+        ## action 1: go short Long
+        if action == 1:
+            if self.shares[0] < 0:
+                ## do nothing, already Short Long
+            else:
+                ## self.shares[0] is positive
+                ## liquidate current portfolio and go short long
+        '''
+
+        '''
         # try to take position in SH but already have one
         if (action == 0 or action == 1) and self.shares[0]:
             self.actions.append('Stay LONG/SHORT SH')
@@ -160,7 +179,7 @@ class Env(gym.Env):
             else:
                 # do nothing for action 4 since no positions to exit
                 self.actions.append('NOTHING')
-
+        '''
         self.current_share_history.append(self.shares)
         self.current_portfolio_history.append(self.portfolio)
         return sum(self.portfolio)
