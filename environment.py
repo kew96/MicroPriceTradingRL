@@ -25,10 +25,10 @@ class Env(gym.Env):
         self.prob = prob
         self.reward_func = reward_func
         self.ite = steps or len(data) // 2 - 1
-        self.states = self._simulation()
+        self.states, self.mapping = self._simulation()
 
         self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
-        self.action_space = spaces.Discrete(5)
+        self.action_space = spaces.Discrete(1)
         self._max_episode_steps = 10_000
 
         self.state_index = 0
@@ -90,8 +90,10 @@ class Env(gym.Env):
                 raise ValueError("Wrong price movement")
             simu.append(current)
         simu = pd.DataFrame(simu, columns=['res_imb_states', 'price_1', 'price_2'])
-        simu.res_imb_states, mapping = simu.res_imb_states.factorize()
-        return simu
+        codes, mapping = simu.res_imb_states.factorize()
+        mapping = dict(zip(codes, simu.res_imb_states))
+        simu.res_imb_states = codes
+        return simu, mapping
 
     def step(self, action):
         self.last_state = self.current_state
@@ -132,15 +134,15 @@ class Env(gym.Env):
         if action == 0:
             if self.shares[0] < 0:
                 cash = self.liquidate()
-                sh = self.start_allocation[0]
-                sds = -self.start_allocation[1]
+                sh = abs(self.start_allocation[0])
+                sds = -abs(self.start_allocation[1])
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.last_state[1], sds / self.last_state[2]]
         else:
             if self.shares[0] > 0:
                 cash = self.liquidate()
-                sh = -self.start_allocation[0]
-                sds = self.start_allocation[1]
+                sh = -abs(self.start_allocation[0])
+                sds = abs(self.start_allocation[1])
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.last_state[1], sds / self.last_state[2]]
 
