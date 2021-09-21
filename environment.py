@@ -1,3 +1,4 @@
+from typing import List
 from pathlib import Path
 from collections import Callable
 
@@ -12,11 +13,18 @@ import matplotlib.pyplot as plt
 
 class Env(gym.Env):
 
-    def __init__(self, data: pd.DataFrame, prob: pd.DataFrame, reward_func: Callable, steps: int = 100):
+    def __init__(
+            self,
+            data: pd.DataFrame,
+            prob: pd.DataFrame,
+            reward_func: Callable,
+            start_allocation: List[int],
+            steps: int = 100,
+    ):
         self.df = data
         self.prob = prob
         self.reward_func = reward_func
-        self.ite = steps or len(data)//2 - 1
+        self.ite = steps or len(data) // 2 - 1
         self.states = self._simulation()
 
         self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
@@ -28,18 +36,23 @@ class Env(gym.Env):
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
+        # Trading costs and initial shares
+        self.start_allocation = start_allocation
+
         # cash, SH position, SDS position
-        self.current_portfolio_history = [[0, 0, 0]]
-        self.portfolio = [0, 0, 0]
+        self.portfolio = [sum(start_allocation), *start_allocation]
+        self.current_portfolio_history = [self.portfolio]
+
+        self.shares = [start_allocation[0]/self.current_state[1], start_allocation[1]/self.current_state[2]]
+        self.current_share_history = [self.shares]
+
         self.steps_since_trade = 0
-        self.shares = [0, 0]
-        self.current_share_history = [[0, 0]]
         self.actions = list()
         self.actions_history = list()
 
         # Need a history for plotting
-        self.last_share_history = [[0, 0]]
-        self.last_portfolio_history = [[0, 0, 0]]
+        self.last_share_history = self.current_share_history
+        self.last_portfolio_history = self.current_portfolio_history
 
     @property
     def share_history(self):
@@ -86,17 +99,16 @@ class Env(gym.Env):
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = self.state_index == len(self.states)-1
 
-        # self.update_portfolio(action)
+        self.portfolio = self.update_portfolio()
+        reward = self.trade(action)
         return (
             jnp.asarray(self.current_state.values),
-            self.update_portfolio(action),
+            reward,
             self.terminal,
             {}
         )
 
-    def update_portfolio(self, action):
-        # self.portfolio[1] = self.current_state[1]/self.last_state[1]
-        # self.portfolio[2] = self.current_state[2] / self.last_state[2]
+    def trade(self, action):
 
         shares = [1000/self.last_state[1], 500/self.last_state[2]]
         returns = [self.current_state[1]/self.last_state[1], self.current_state[2]/self.last_state[2]]
@@ -118,6 +130,18 @@ class Env(gym.Env):
                 ## self.shares[0] is positive
                 ## liquidate current portfolio and go short long
         '''
+
+        if action == 0:
+            if self.shares[0] < 0:
+                cash = self.liquidate()
+                sh = 1000
+                sds = -500
+        else:
+            if self.shares[0] > 0:
+                cash = self.liquidate()
+                sh = -1000
+                sds = 500
+        self.portfolio = [cash, sh, sds]
 
         '''
         # try to take position in SH but already have one
@@ -183,6 +207,15 @@ class Env(gym.Env):
         self.current_share_history.append(self.shares)
         self.current_portfolio_history.append(self.portfolio)
         return sum(self.portfolio)
+
+    def update_portfolio(self):
+        pass
+
+    def liquidate(self):
+        cash = self.portfolio[0]
+        for position, price in zip(self.shares, self.current_state[1:]):
+            cash += position * price
+        return cash
 
     def plot(self, data='portfolio_history'):
         options = ['portfolio_history', 'share_history']
