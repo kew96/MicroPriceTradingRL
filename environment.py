@@ -99,11 +99,12 @@ class Env(gym.Env):
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = self.state_index == len(self.states) - 1
 
-        reward = self.trade(action)
+        self.portfolio = self.trade(action)
+        self.portfolio = self.update_portfolio()
 
         return (
             jnp.asarray(self.current_state.values),
-            reward,
+            sum(self.portfolio),
             self.terminal,
             {}
         )
@@ -206,10 +207,14 @@ class Env(gym.Env):
         '''
         self.current_share_history.append(self.shares)
         self.current_portfolio_history.append(self.portfolio)
-        return sum(self.portfolio)
+        return self.portfolio
 
     def update_portfolio(self):
-        pass
+        return [
+            self.portfolio[0],
+            self.shares[0]*self.current_state[1],
+            self.shares[1]*self.current_state[2]
+        ]
 
     def liquidate(self):
         cash = self.portfolio[0]
