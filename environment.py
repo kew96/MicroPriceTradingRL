@@ -90,17 +90,17 @@ class Env(gym.Env):
                 raise ValueError("Wrong price movement")
             simu.append(current)
         simu = pd.DataFrame(simu, columns=['res_imb_states', 'price_1', 'price_2'])
-        simu.res_imb_states = simu.res_imb_states.factorize()[0]
+        simu.res_imb_states, mapping = simu.res_imb_states.factorize()
         return simu
 
     def step(self, action):
         self.last_state = self.current_state
         self.state_index += 1
         self.current_state = self.states.iloc[self.state_index, :]
-        self.terminal = self.state_index == len(self.states)-1
+        self.terminal = self.state_index == len(self.states) - 1
 
-        self.portfolio = self.update_portfolio()
         reward = self.trade(action)
+
         return (
             jnp.asarray(self.current_state.values),
             reward,
@@ -109,9 +109,6 @@ class Env(gym.Env):
         )
 
     def trade(self, action):
-
-        shares = [1000/self.last_state[1], 500/self.last_state[2]]
-        returns = [self.current_state[1]/self.last_state[1], self.current_state[2]/self.last_state[2]]
 
         '''
         ## action 0: go Long Short
@@ -134,14 +131,17 @@ class Env(gym.Env):
         if action == 0:
             if self.shares[0] < 0:
                 cash = self.liquidate()
-                sh = 1000
-                sds = -500
+                sh = self.start_allocation[0]
+                sds = -self.start_allocation[1]
+                self.portfolio = [cash, sh, sds]
+                self.shares = [sh / self.last_state[1], sds / self.last_state[2]]
         else:
             if self.shares[0] > 0:
                 cash = self.liquidate()
-                sh = -1000
-                sds = 500
-        self.portfolio = [cash, sh, sds]
+                sh = -self.start_allocation[0]
+                sds = self.start_allocation[1]
+                self.portfolio = [cash, sh, sds]
+                self.shares = [sh / self.last_state[1], sds / self.last_state[2]]
 
         '''
         # try to take position in SH but already have one
@@ -213,8 +213,8 @@ class Env(gym.Env):
 
     def liquidate(self):
         cash = self.portfolio[0]
-        for position, price in zip(self.shares, self.current_state[1:]):
-            cash += position * price
+        for value in self.portfolio[1:]:
+            cash += value
         return cash
 
     def plot(self, data='portfolio_history'):
