@@ -25,7 +25,8 @@ class Env(gym.Env):
         self.prob = prob
         self.reward_func = reward_func
         self.ite = steps or len(data) // 2 - 1
-        self.states, self.mapping = self._simulation()
+        self.mapping = self.__gen_mapping()
+        self.states = self._simulation()
 
         self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
         self.action_space = spaces.Discrete(2)
@@ -61,6 +62,16 @@ class Env(gym.Env):
     def portfolio_history(self):
         return self.last_portfolio_history
 
+    def __gen_mapping(self):
+        rows = []
+        for price_relation_d in range(6):
+            for s1_imb_d in range(3):
+                for s2_imb_d in range(3):
+                    s1_imb_d, s2_imb_d, price_relation_d = str(s1_imb_d), str(s2_imb_d), str(price_relation_d)
+                    rows.append(price_relation_d + s1_imb_d + s2_imb_d)
+
+        return dict(zip(rows, range(len(rows))))
+
     def _simulation(self):
         # init: initial states. '100' means simuidual and imbalances states. The later two 100 are initial asset prices
 
@@ -88,11 +99,10 @@ class Env(gym.Env):
             else:
                 raise ValueError("Wrong price movement")
             simu.append(current)
+
         simu = pd.DataFrame(simu, columns=['res_imb_states', 'price_1', 'price_2'])
-        codes, mapping = simu.res_imb_states.factorize()
-        mapping = dict(zip(simu.res_imb_states, codes))
-        simu.res_imb_states = codes
-        return simu, mapping
+        simu.res_imb_states = simu.res_imb_states.replace(self.mapping)
+        return simu
 
     def step(self, action):
         self.portfolio = self.trade(action)
@@ -276,7 +286,7 @@ class Env(gym.Env):
         self.last_share_history = self.current_share_history
         self.last_portfolio_history = self.current_portfolio_history
 
-        self.states, self.mapping = self._simulation()
+        self.states = self._simulation()
 
         self.state_index = 0
         self.current_state = self.states.iloc[self.state_index, :]
