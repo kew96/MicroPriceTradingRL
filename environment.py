@@ -62,7 +62,8 @@ class Env(gym.Env):
     def portfolio_history(self):
         return self.last_portfolio_history
 
-    def __gen_mapping(self):
+    @staticmethod
+    def __gen_mapping():
         rows = []
         for price_relation_d in range(6):
             for s1_imb_d in range(3):
