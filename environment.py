@@ -21,6 +21,10 @@ class Env(gym.Env):
             self,
             data: pd.DataFrame,
             prob: pd.DataFrame,
+            fixed_sell_cost: float = 0,
+            fixed_buy_cost: float = 0,
+            var_sell_cost: float = 0.005,  # 0.5%
+            var_buy_cost: float = 0.001,  # 0.1%
             reward_func: Callable = portfolio_value,
             start_allocation: List[int] = [1000, -500],
             steps: int = 100,
@@ -43,6 +47,10 @@ class Env(gym.Env):
 
         # Trading costs and initial shares
         self.start_allocation = start_allocation
+        self.fixed_sell_cost = fixed_sell_cost
+        self.fixed_buy_cost = fixed_buy_cost
+        self.var_sell_cost = var_sell_cost
+        self.var_buy_cost = var_buy_cost
 
         # cash, SH position, SDS position
         self.portfolio = [-sum(start_allocation), *start_allocation]
@@ -54,6 +62,8 @@ class Env(gym.Env):
         self.steps_since_trade = 0
         self.actions = list()
         self.actions_history = list()
+
+        self.num_trades = [0]
 
         # Need a history for plotting
         self.last_share_history = self.current_share_history
@@ -133,7 +143,10 @@ class Env(gym.Env):
                 cash = self.liquidate()
                 sh = abs(self.start_allocation[0])
                 sds = -abs(self.start_allocation[1])
-                cash -= sh + sds
+                costs = self.trading_costs(self.shares[0], sh)
+                costs += self.trading_costs(self.shares[1], sds)
+                cash -= sh + sds + costs
+                self.num_trades[-1] += 2
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
         elif action == 1:
@@ -141,7 +154,10 @@ class Env(gym.Env):
                 cash = self.liquidate()
                 sh = -abs(self.start_allocation[0])
                 sds = abs(self.start_allocation[1])
-                cash -= sds + sh
+                costs = self.trading_costs(self.shares[0], sh)
+                costs += self.trading_costs(self.shares[1], sds)
+                cash -= sh + sds + costs
+                self.num_trades[-1] += 2
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
 
@@ -160,7 +176,18 @@ class Env(gym.Env):
         cash = self.portfolio[0]
         for value in self.portfolio[1:]:
             cash += value
+            cash -= self.trading_costs(value, 0)
         return cash
+
+    def trading_costs(self, current, target):
+        if current - target > 0:  # sell
+            costs = self.fixed_sell_cost
+            costs += self.var_sell_cost * (current - target)
+        elif current - target < 0:  # buy
+            costs = self.fixed_buy_cost
+            costs += self.var_buy_cost * (target - current)
+
+        return costs
 
     def plot(self, data='portfolio_history'):
         options = ['portfolio_history', 'share_history']
@@ -222,6 +249,8 @@ class Env(gym.Env):
         self.steps_since_trade = 0
         self.actions = list()
         self.actions_history = list()
+
+        self.num_trades.append(0)
 
         return jnp.asarray(self.current_state.values)
 
