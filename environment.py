@@ -181,11 +181,11 @@ class Env(gym.Env):
         elif data == 'share_history':
             array = np.array(self.last_share_history)
             fig, ax = plt.subplots(figsize=(15, 10))
-            ax.plot(array[:, 0], label='SH', c='b')
+            ax.plot(array[:, 0],'b*', label='SH')
             ax.set_ylabel('SH Shares', fontsize=14)
 
             ax2 = ax.twinx()
-            ax2.plot(array[:, 1], label='SDS', c='g')
+            ax2.plot(array[:, 1], 'g+', label='SDS')
             ax2.set_ylabel('SDS Shares', fontsize=14)
 
             fig.legend(fontsize=14)
