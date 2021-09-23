@@ -123,24 +123,6 @@ class Env(gym.Env):
 
     def trade(self, action):
 
-        '''
-        ## action 0: go Long Short
-        if action == 0:
-            if self.shares[0] > 0:
-                ## do nothing, already Long short
-            else:
-                ## self.shares[0] is negative
-                ## liquidate current portfolio and go long short
-        
-        ## action 1: go short Long
-        if action == 1:
-            if self.shares[0] < 0:
-                ## do nothing, already Short Long
-            else:
-                ## self.shares[0] is positive
-                ## liquidate current portfolio and go short long
-        '''
-
         if action == 0:
             if self.shares[0] < 0:
                 cash = self.liquidate()
@@ -158,68 +140,6 @@ class Env(gym.Env):
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
 
-
-        '''
-        # try to take position in SH but already have one
-        if (action == 0 or action == 1) and self.shares[0]:
-            self.actions.append('Stay LONG/SHORT SH')
-            self.portfolio[1] = self.shares[0] * self.current_state[1]
-        # try to take position in SDS but already have one
-        elif (action == 2 or action == 3) and self.shares[1]:
-
-            self.actions.append('Stay LONG/SHORT SDS')
-            self.portfolio[2] = self.shares[1] * self.current_state[2]
-        # exit all positions and realize returns in cash
-        elif action == 4 and sum(self.shares):
-            self.actions.append('EXIT POSITION')
-            self.shares = [0, 0]
-            self.portfolio[0] += sum(self.portfolio[1:])
-            self.portfolio[1:] = [0, 0]
-        else:
-            # buy SH
-            if action == 0:
-                self.actions.append('LONG SH')
-                if self.shares[1]:
-                    self.portfolio[0] += self.shares[1] * self.current_state[2]
-                    self.portfolio[2] = 0
-                    self.shares[1] = 0
-                self.portfolio[1] = 1000
-                self.portfolio[0] -= 1000
-                self.shares = [shares[0], 0]
-            # sell SH
-            elif action == 1:
-                self.actions.append('SHORT SH')
-                if self.shares[1]:
-                    self.portfolio[0] += self.shares[1] * self.current_state[2]
-                    self.portfolio[2] = 0
-                    self.shares[1] = 0
-                self.portfolio[1] = -1000
-                self.portfolio[0] += 1000
-                self.shares[0] = -shares[0]
-            # buy SDS
-            elif action == 2:
-                self.actions.append('LONG SDS')
-                if self.shares[0]:
-                    self.portfolio[0] += self.shares[0] * self.current_state[1]
-                    self.portfolio[1] = 0
-                    self.shares[0] = 0
-                self.portfolio[2] = 500
-                self.portfolio[0] -= 500
-                self.shares[1] = shares[1]
-            # sell SDS
-            elif action == 3:
-                self.actions.append('SHORT SDS')
-                if self.shares[0]:
-                    self.portfolio[0] += self.shares[0] * self.current_state[1]
-                    self.portfolio[1] = 0
-                    self.shares[0] = 0
-                self.portfolio[2] = -500
-                self.portfolio[0] += 500
-                self.shares[1] = -shares[1]
-            else:
-                # do nothing for action 4 since no positions to exit
-                self.actions.append('NOTHING')
-        '''
         self.current_share_history.append(self.shares)
         self.current_portfolio_history.append(self.portfolio)
         return self.portfolio
@@ -254,15 +174,6 @@ class Env(gym.Env):
             fig, ax = plt.subplots(figsize=(15, 10))
             ax.plot(array.sum(axis=1), label='Total', c='g')
             ax.set_ylabel('Total Value', fontsize=14)
-
-            # ax.plot(array[:, 0], label='Cash (L)', c='k', alpha=0.8)
-            # ax.plot(array[:, 1], label='SH (L)', c='b', alpha=0.8)
-            # ax.plot(array[:, 2], label='SDS (L)', c='c', alpha=0.8)
-            # ax.set_ylabel('Individual Values', fontsize=14)
-            #
-            # ax2 = ax.twinx()
-            # ax2.plot(array.sum(axis=1), label='Total (R)', c='g')
-            # ax2.set_ylabel('Total Value', fontsize=14)
 
             fig.legend(fontsize=14)
             fig.suptitle('Portfolio Value', fontsize=14)
