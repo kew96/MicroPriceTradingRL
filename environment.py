@@ -74,7 +74,6 @@ class Env(gym.Env):
         return dict(zip(rows, range(len(rows))))
 
     def _simulation(self):
-        # init: initial states. '100' means simuidual and imbalances states. The later two 100 are initial asset prices
 
         simu = [[str(self.df.current_state.iloc[0]), self.df.mid1.iloc[0], self.df.mid2.iloc[0]]]
         tick = 0.01
