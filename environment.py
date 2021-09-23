@@ -11,14 +11,18 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 
+def portfolio_value(portfolio, action, last_state, current_state):
+    return sum(portfolio)
+
+
 class Env(gym.Env):
 
     def __init__(
             self,
             data: pd.DataFrame,
             prob: pd.DataFrame,
-            reward_func: Callable,
-            start_allocation: List[int],
+            reward_func: Callable = portfolio_value,
+            start_allocation: List[int] = [1000, -500],
             steps: int = 100,
     ):
         self.df = data
@@ -33,6 +37,7 @@ class Env(gym.Env):
         self._max_episode_steps = 10_000
 
         self.state_index = 0
+        self.last_state = None
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
@@ -108,6 +113,7 @@ class Env(gym.Env):
         self.portfolio = self.trade(action)
 
         self.state_index += 1
+        self.last_state = self.current_state
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = self.state_index == len(self.states) - 1
 
@@ -115,7 +121,7 @@ class Env(gym.Env):
 
         return (
             jnp.asarray(self.current_state.values),
-            sum(self.portfolio),
+            self.reward_func(self.portfolio, action, self.last_state, self.current_state),
             self.terminal,
             {}
         )
