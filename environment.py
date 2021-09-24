@@ -99,6 +99,35 @@ class Env(gym.Env):
         plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
         plt.show()
 
+    def summarize_decisions(self):
+        collapsed = self.collapse_num_trades_dict
+        states = []
+        freq = []
+        d = {} ## keys are states, values are (unique, counts)
+
+        fig, ax = plt.subplots()
+        for key in sorted(collapsed):
+            states.append(key)
+            unique, counts = np.unique(collapsed[key], return_counts=True)
+            d[key] = (unique, counts)
+
+        freq_dict = {}
+        for i in range(self.action_space.n+1):
+
+            freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in sorted(d.keys())]
+
+        ax.bar(sorted(d.keys()), freq_dict[0], label='Action 0')
+        for i in range(1, self.action_space.n + 1):
+            ax.bar(sorted(d.keys()),
+                   freq_dict[i],
+                   label = 'Action ' + str(i),
+                   bottom = sum([np.array(freq_dict[j]) for j in range(i)])
+                   )
+
+        ax.legend()
+        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
+        plt.show()
+
     def summarize_state_decisions(self,state):
         collapsed = self.collapse_num_trades_dict
         unique, counts = np.unique(collapsed[state], return_counts=True)
