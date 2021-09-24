@@ -64,6 +64,7 @@ class Env(gym.Env):
         self.actions = list()
         self.actions_history = list()
 
+        # dict: keys are states, values are lists with actions take in that state
         self.num_trades = [dict()]
 
         # Need a history for plotting
@@ -78,11 +79,31 @@ class Env(gym.Env):
     def collapse_num_trades_dict(self):
         collapsed = self.num_trades[0]
         for i in range(1,len(self.num_trades)):
-            print(self.num_trades[i])
             for k, v in self.num_trades[i].items():
-                current = collapsed.get(k, np.array([0,0])) + v
+                current = collapsed.get(k, []) + v
                 collapsed[k] = current
         return collapsed
+
+    def plot_state_frequency(self):
+        collapsed = self.collapse_num_trades_dict
+        states = []
+        freq = []
+
+        fig, ax = plt.subplots()
+
+        for key in sorted(collapsed):
+            states.append(key)
+            freq.append(len(collapsed[key]))
+
+        ax.bar(states, freq)
+        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
+        plt.show()
+
+    def summarize_state_decisions(self,state):
+        collapsed = self.collapse_num_trades_dict
+        unique, counts = np.unique(collapsed[state], return_counts=True)
+        plt.bar(['Action ' + str(i) for i in unique],counts)
+        plt.show()
 
     @property
     def portfolio_history(self):
@@ -157,10 +178,6 @@ class Env(gym.Env):
                 costs = self.trading_costs(self.shares[0], sh)
                 costs += self.trading_costs(self.shares[1], sds)
                 cash -= sh + sds + costs
-                reverse_mapped_state = self.__reverse_mapping[self.current_state[0]]
-                num_trades_last = \
-                    self.num_trades[-1].get(reverse_mapped_state, np.array([0, 0])) + np.array([1, -1])
-                self.num_trades[-1][reverse_mapped_state] = num_trades_last
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
         elif action == 1:
@@ -171,16 +188,20 @@ class Env(gym.Env):
                 costs = self.trading_costs(self.shares[0], sh)
                 costs += self.trading_costs(self.shares[1], sds)
                 cash -= sh + sds + costs
-                reverse_mapped_state = self.__reverse_mapping[self.current_state[0]]
-                num_trades_last = \
-                    self.num_trades[-1].get(reverse_mapped_state,np.array([0, 0])) + np.array([-1, 1])
-                self.num_trades[-1][reverse_mapped_state] = num_trades_last
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
 
+        self.update_num_trades(action)
         self.current_share_history.append(self.shares)
         self.current_portfolio_history.append(self.portfolio)
         return self.portfolio
+
+    def update_num_trades(self,action):
+        reverse_mapped_state = self.__reverse_mapping[self.current_state[0]]
+        num_trades_last = \
+            self.num_trades[-1].get(reverse_mapped_state, []) + [action]
+        self.num_trades[-1][reverse_mapped_state] = num_trades_last
+
 
     def update_portfolio(self):
         return [
