@@ -64,7 +64,7 @@ class Env(gym.Env):
         self.actions = list()
         self.actions_history = list()
 
-        # dict: keys are states, values are lists with actions take in that state
+        # dict: keys are states, values are lists of actions taken in that state
         self.num_trades = [dict()]
 
         # Need a history for plotting
@@ -75,17 +75,16 @@ class Env(gym.Env):
     def share_history(self):
         return self.last_share_history
 
-    @property
-    def collapse_num_trades_dict(self):
-        collapsed = self.num_trades[0]
-        for i in range(1,len(self.num_trades)):
+    def collapse_num_trades_dict(self, num_env_to_analyze = 1):
+        collapsed = self.num_trades[-num_env_to_analyze]
+        for i in range(len(self.num_trades) - num_env_to_analyze + 1, len(self.num_trades)):
             for k, v in self.num_trades[i].items():
                 current = collapsed.get(k, []) + v
                 collapsed[k] = current
         return collapsed
 
     def plot_state_frequency(self):
-        collapsed = self.collapse_num_trades_dict
+        collapsed = self.collapse_num_trades_dict(2)
         states = []
         freq = []
 
@@ -99,8 +98,8 @@ class Env(gym.Env):
         plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
         plt.show()
 
-    def summarize_decisions(self):
-        collapsed = self.collapse_num_trades_dict
+    def summarize_decisions(self, num_env_to_analyze = 1):
+        collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         states = []
         freq = []
         d = {} ## keys are states, values are (unique, counts)
@@ -110,7 +109,6 @@ class Env(gym.Env):
             states.append(key)
             unique, counts = np.unique(collapsed[key], return_counts=True)
             d[key] = (unique, counts)
-
         freq_dict = {}
         for i in range(self.action_space.n+1):
 
@@ -128,8 +126,8 @@ class Env(gym.Env):
         plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
         plt.show()
 
-    def summarize_state_decisions(self,state):
-        collapsed = self.collapse_num_trades_dict
+    def summarize_state_decisions(self,state,num_env_to_analyze = 1):
+        collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         unique, counts = np.unique(collapsed[state], return_counts=True)
         plt.bar(['Action ' + str(i) for i in unique],counts)
         plt.show()
@@ -199,8 +197,7 @@ class Env(gym.Env):
 
     def trade(self, action):
 
-        if action == 0:
-            if self.shares[0] < 0:
+        if action == 0 and self.shares[0] < 0:
                 cash = self.liquidate()
                 sh = abs(self.start_allocation[0])
                 sds = -abs(self.start_allocation[1])
@@ -209,8 +206,8 @@ class Env(gym.Env):
                 cash -= sh + sds + costs
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
-        elif action == 1:
-            if self.shares[0] > 0:
+                self.update_num_trades(action)
+        elif action == 1 and self.shares[0] > 0:
                 cash = self.liquidate()
                 sh = -abs(self.start_allocation[0])
                 sds = abs(self.start_allocation[1])
@@ -219,8 +216,10 @@ class Env(gym.Env):
                 cash -= sh + sds + costs
                 self.portfolio = [cash, sh, sds]
                 self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
+                self.update_num_trades(action)
+        else:
+            self.update_num_trades(2)
 
-        self.update_num_trades(action)
         self.current_share_history.append(self.shares)
         self.current_portfolio_history.append(self.portfolio)
         return self.portfolio
