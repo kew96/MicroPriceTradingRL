@@ -101,7 +101,6 @@ class Env(gym.Env):
     def summarize_decisions(self, num_env_to_analyze=1):
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         states = []
-        freq = []
         d = {}  # keys are states, values are (unique, counts)
 
         fig, ax = plt.subplots()
@@ -118,18 +117,18 @@ class Env(gym.Env):
         for i in range(1, self.action_space.n + 1):
             ax.bar(sorted(d.keys()),
                    freq_dict[i],
-                   label = 'Action ' + str(i),
-                   bottom = sum([np.array(freq_dict[j]) for j in range(i)])
+                   label='Action ' + str(i),
+                   bottom=sum([np.array(freq_dict[j]) for j in range(i)])
                    )
 
         ax.legend()
         plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
         plt.show()
 
-    def summarize_state_decisions(self,state,num_env_to_analyze = 1):
+    def summarize_state_decisions(self, state, num_env_to_analyze=1):
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         unique, counts = np.unique(collapsed[state], return_counts=True)
-        plt.bar(['Action ' + str(i) for i in unique],counts)
+        plt.bar(['Action ' + str(i) for i in unique], counts)
         plt.show()
 
     @property
@@ -156,8 +155,8 @@ class Env(gym.Env):
         for i in range(self.ite):
             state_in = current[0]
             total_prob = self.prob.loc[state_in, :].sum()
-            random_N = np.random.uniform(0, total_prob)
-            state_out = self.prob.loc[state_in][self.prob.loc[state_in].cumsum() > random_N].index[0]
+            random_n = np.random.uniform(0, total_prob)
+            state_out = self.prob.loc[state_in][self.prob.loc[state_in].cumsum() > random_n].index[0]
             price_move = state_out[3:]
             state_out = state_out[:3]
             if price_move == '00':
@@ -224,7 +223,7 @@ class Env(gym.Env):
         self.current_portfolio_history.append(self.portfolio)
         return self.portfolio
 
-    def update_num_trades(self,action):
+    def update_num_trades(self, action):
         reverse_mapped_state = self.__reverse_mapping[self.current_state[0]]
         num_trades_last = \
             self.num_trades[-1].get(reverse_mapped_state, []) + [action]
@@ -251,6 +250,8 @@ class Env(gym.Env):
         elif current - target < 0:  # buy
             costs = self.fixed_buy_cost
             costs += self.var_buy_cost * (target - current)
+        else:
+            costs = 0
 
         return costs
 
@@ -321,4 +322,3 @@ class Env(gym.Env):
 
     def render(self, mode="human"):
         return None
-
