@@ -29,7 +29,7 @@ class Env(gym.Env):
         self.prob = prob
         self.reward_func = reward_func
         self.ite = steps or len(data) // 2 - 1
-        self.mapping = self.__gen_mapping()
+        self.mapping = self.get_mapping()
         self.states = self._simulation()
 
         self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
@@ -68,7 +68,7 @@ class Env(gym.Env):
         return self.last_portfolio_history
 
     @staticmethod
-    def __gen_mapping():
+    def get_mapping():
         rows = []
         for price_relation_d in range(6):
             for s1_imb_d in range(3):
