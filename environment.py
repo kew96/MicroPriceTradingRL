@@ -75,7 +75,7 @@ class Env(gym.Env):
     def share_history(self):
         return self.last_share_history
 
-    def collapse_num_trades_dict(self, num_env_to_analyze = 1):
+    def collapse_num_trades_dict(self, num_env_to_analyze=1):
         collapsed = self.num_trades[-num_env_to_analyze]
         for i in range(len(self.num_trades) - num_env_to_analyze + 1, len(self.num_trades)):
             for k, v in self.num_trades[i].items():
@@ -98,7 +98,7 @@ class Env(gym.Env):
         plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
         plt.show()
 
-    def summarize_decisions(self, num_env_to_analyze = 1):
+    def summarize_decisions(self, num_env_to_analyze=1):
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         states = []
         freq = []
@@ -198,25 +198,25 @@ class Env(gym.Env):
     def trade(self, action):
 
         if action == 0 and self.shares[0] < 0:
-                cash = self.liquidate()
-                sh = abs(self.start_allocation[0])
-                sds = -abs(self.start_allocation[1])
-                costs = self.trading_costs(self.shares[0], sh)
-                costs += self.trading_costs(self.shares[1], sds)
-                cash -= sh + sds + costs
-                self.portfolio = [cash, sh, sds]
-                self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
-                self.update_num_trades(action)
+            cash = self.liquidate()
+            sh = abs(self.start_allocation[0])
+            sds = -abs(self.start_allocation[1])
+            costs = self.trading_costs(self.shares[0], sh)
+            costs += self.trading_costs(self.shares[1], sds)
+            cash -= sh + sds + costs
+            self.portfolio = [cash, sh, sds]
+            self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
+            self.update_num_trades(action)
         elif action == 1 and self.shares[0] > 0:
-                cash = self.liquidate()
-                sh = -abs(self.start_allocation[0])
-                sds = abs(self.start_allocation[1])
-                costs = self.trading_costs(self.shares[0], sh)
-                costs += self.trading_costs(self.shares[1], sds)
-                cash -= sh + sds + costs
-                self.portfolio = [cash, sh, sds]
-                self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
-                self.update_num_trades(action)
+            cash = self.liquidate()
+            sh = -abs(self.start_allocation[0])
+            sds = abs(self.start_allocation[1])
+            costs = self.trading_costs(self.shares[0], sh)
+            costs += self.trading_costs(self.shares[1], sds)
+            cash -= sh + sds + costs
+            self.portfolio = [cash, sh, sds]
+            self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
+            self.update_num_trades(action)
         else:
             self.update_num_trades(2)
 
@@ -229,7 +229,6 @@ class Env(gym.Env):
         num_trades_last = \
             self.num_trades[-1].get(reverse_mapped_state, []) + [action]
         self.num_trades[-1][reverse_mapped_state] = num_trades_last
-
 
     def update_portfolio(self):
         return [
@@ -280,7 +279,7 @@ class Env(gym.Env):
         elif data == 'share_history':
             array = np.array(self.last_share_history)
             fig, ax = plt.subplots(figsize=(15, 10))
-            ax.plot(array[:, 0],'b*', label='SH')
+            ax.plot(array[:, 0], 'b*', label='SH')
             ax.set_ylabel('SH Shares', fontsize=14)
 
             ax2 = ax.twinx()
