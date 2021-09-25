@@ -34,8 +34,8 @@ class Env(gym.Env):
         self.reward_func = reward_func
         self.ite = steps or len(data) // 2 - 1
         
-        self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.mapping = self.get_mapping()
+        self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.states = self._simulation()
 
         self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
