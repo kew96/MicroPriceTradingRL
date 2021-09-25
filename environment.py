@@ -21,6 +21,10 @@ class Env(gym.Env):
             self,
             data: pd.DataFrame,
             prob: pd.DataFrame,
+            fixed_sell_cost: float = 0,
+            fixed_buy_cost: float = 0,
+            var_sell_cost: float = 0.005,  # 0.5%
+            var_buy_cost: float = 0.001,  # 0.1%
             reward_func: Callable = portfolio_value,
             start_allocation: List[int] = [1000, -500],
             steps: int = 100,
@@ -29,6 +33,8 @@ class Env(gym.Env):
         self.prob = prob
         self.reward_func = reward_func
         self.ite = steps or len(data) // 2 - 1
+        
+        self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.mapping = self.get_mapping()
         self.states = self._simulation()
 
@@ -43,6 +49,10 @@ class Env(gym.Env):
 
         # Trading costs and initial shares
         self.start_allocation = start_allocation
+        self.fixed_sell_cost = fixed_sell_cost
+        self.fixed_buy_cost = fixed_buy_cost
+        self.var_sell_cost = var_sell_cost
+        self.var_buy_cost = var_buy_cost
 
         # cash, SH position, SDS position
         self.portfolio = [-sum(start_allocation), *start_allocation]
@@ -54,6 +64,9 @@ class Env(gym.Env):
         self.steps_since_trade = 0
         self.actions = list()
         self.actions_history = list()
+
+        # dict: keys are states, values are lists of actions taken in that state
+        self.num_trades = [dict()]
 
         # Need a history for plotting
         self.last_share_history = self.current_share_history
@@ -77,6 +90,62 @@ class Env(gym.Env):
                     rows.append(price_relation_d + s1_imb_d + s2_imb_d)
 
         return dict(zip(rows, range(len(rows))))
+      
+    def collapse_num_trades_dict(self, num_env_to_analyze=1):
+        collapsed = self.num_trades[-num_env_to_analyze]
+        for i in range(len(self.num_trades) - num_env_to_analyze + 1, len(self.num_trades)):
+            for k, v in self.num_trades[i].items():
+                current = collapsed.get(k, []) + v
+                collapsed[k] = current
+        return collapsed
+
+    def plot_state_frequency(self):
+        collapsed = self.collapse_num_trades_dict(2)
+        states = []
+        freq = []
+
+        fig, ax = plt.subplots()
+
+        for key in sorted(collapsed):
+            states.append(key)
+            freq.append(len(collapsed[key]))
+
+        ax.bar(states, freq)
+        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
+        plt.show()
+
+    def summarize_decisions(self, num_env_to_analyze=1):
+        collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
+        states = []
+        d = {}  # keys are states, values are (unique, counts)
+
+        fig, ax = plt.subplots()
+        for key in sorted(collapsed):
+            states.append(key)
+            unique, counts = np.unique(collapsed[key], return_counts=True)
+            d[key] = (unique, counts)
+        freq_dict = {}
+        for i in range(self.action_space.n+1):
+
+            freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in sorted(d.keys())]
+
+        ax.bar(sorted(d.keys()), freq_dict[0], label='Action 0')
+        for i in range(1, self.action_space.n + 1):
+            ax.bar(sorted(d.keys()),
+                   freq_dict[i],
+                   label='Action ' + str(i),
+                   bottom=sum([np.array(freq_dict[j]) for j in range(i)])
+                   )
+
+        ax.legend()
+        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
+        plt.show()
+
+    def summarize_state_decisions(self, state, num_env_to_analyze=1):
+        collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
+        unique, counts = np.unique(collapsed[state], return_counts=True)
+        plt.bar(['Action ' + str(i) for i in unique], counts)
+        plt.show()
 
     def _simulation(self):
 
@@ -87,8 +156,8 @@ class Env(gym.Env):
         for i in range(self.ite):
             state_in = current[0]
             total_prob = self.prob.loc[state_in, :].sum()
-            random_N = np.random.uniform(0, total_prob)
-            state_out = self.prob.loc[state_in][self.prob.loc[state_in].cumsum() > random_N].index[0]
+            random_n = np.random.uniform(0, total_prob)
+            state_out = self.prob.loc[state_in][self.prob.loc[state_in].cumsum() > random_n].index[0]
             price_move = state_out[3:]
             state_out = state_out[:3]
             if price_move == '00':
@@ -128,26 +197,38 @@ class Env(gym.Env):
 
     def trade(self, action):
 
-        if action == 0:
-            if self.shares[0] < 0:
-                cash = self.liquidate()
-                sh = abs(self.start_allocation[0])
-                sds = -abs(self.start_allocation[1])
-                cash -= sh + sds
-                self.portfolio = [cash, sh, sds]
-                self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
-        elif action == 1:
-            if self.shares[0] > 0:
-                cash = self.liquidate()
-                sh = -abs(self.start_allocation[0])
-                sds = abs(self.start_allocation[1])
-                cash -= sds + sh
-                self.portfolio = [cash, sh, sds]
-                self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
+        if action == 0 and self.shares[0] < 0:
+            cash = self.liquidate()
+            sh = abs(self.start_allocation[0])
+            sds = -abs(self.start_allocation[1])
+            costs = self.trading_costs(self.shares[0], sh)
+            costs += self.trading_costs(self.shares[1], sds)
+            cash -= sh + sds + costs
+            self.portfolio = [cash, sh, sds]
+            self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
+            self.update_num_trades(action)
+        elif action == 1 and self.shares[0] > 0:
+            cash = self.liquidate()
+            sh = -abs(self.start_allocation[0])
+            sds = abs(self.start_allocation[1])
+            costs = self.trading_costs(self.shares[0], sh)
+            costs += self.trading_costs(self.shares[1], sds)
+            cash -= sh + sds + costs
+            self.portfolio = [cash, sh, sds]
+            self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
+            self.update_num_trades(action)
+        else:
+            self.update_num_trades(2)
 
         self.current_share_history.append(self.shares)
         self.current_portfolio_history.append(self.portfolio)
         return self.portfolio
+
+    def update_num_trades(self, action):
+        reverse_mapped_state = self.__reverse_mapping[self.current_state[0]]
+        num_trades_last = \
+            self.num_trades[-1].get(reverse_mapped_state, []) + [action]
+        self.num_trades[-1][reverse_mapped_state] = num_trades_last
 
     def update_portfolio(self):
         return [
@@ -160,7 +241,20 @@ class Env(gym.Env):
         cash = self.portfolio[0]
         for value in self.portfolio[1:]:
             cash += value
+            cash -= self.trading_costs(value, 0)
         return cash
+
+    def trading_costs(self, current, target):
+        if current - target > 0:  # sell
+            costs = self.fixed_sell_cost
+            costs += self.var_sell_cost * (current - target)
+        elif current - target < 0:  # buy
+            costs = self.fixed_buy_cost
+            costs += self.var_buy_cost * (target - current)
+        else:
+            costs = 0
+
+        return costs
 
     def plot(self, data='portfolio_history'):
         options = ['portfolio_history', 'share_history']
@@ -187,7 +281,7 @@ class Env(gym.Env):
         elif data == 'share_history':
             array = np.array(self.last_share_history)
             fig, ax = plt.subplots(figsize=(15, 10))
-            ax.plot(array[:, 0],'b*', label='SH')
+            ax.plot(array[:, 0], 'b*', label='SH')
             ax.set_ylabel('SH Shares', fontsize=14)
 
             ax2 = ax.twinx()
@@ -223,8 +317,9 @@ class Env(gym.Env):
         self.actions = list()
         self.actions_history = list()
 
+        self.num_trades.append(dict())
+
         return jnp.asarray(self.current_state.values)
 
     def render(self, mode="human"):
         return None
-
