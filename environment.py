@@ -102,7 +102,7 @@ class Env(gym.Env):
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         states = []
         freq = []
-        d = {} ## keys are states, values are (unique, counts)
+        d = {}  # keys are states, values are (unique, counts)
 
         fig, ax = plt.subplots()
         for key in sorted(collapsed):
