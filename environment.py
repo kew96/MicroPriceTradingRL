@@ -33,8 +33,9 @@ class Env(gym.Env):
         self.prob = prob
         self.reward_func = reward_func
         self.ite = steps or len(data) // 2 - 1
-        self.mapping = self.__gen_mapping()
+        
         self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
+        self.mapping = self.get_mapping()
         self.states = self._simulation()
 
         self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
@@ -75,6 +76,21 @@ class Env(gym.Env):
     def share_history(self):
         return self.last_share_history
 
+    @property
+    def portfolio_history(self):
+        return self.last_portfolio_history
+
+    @staticmethod
+    def get_mapping():
+        rows = []
+        for price_relation_d in range(6):
+            for s1_imb_d in range(3):
+                for s2_imb_d in range(3):
+                    s1_imb_d, s2_imb_d, price_relation_d = str(s1_imb_d), str(s2_imb_d), str(price_relation_d)
+                    rows.append(price_relation_d + s1_imb_d + s2_imb_d)
+
+        return dict(zip(rows, range(len(rows))))
+      
     def collapse_num_trades_dict(self, num_env_to_analyze=1):
         collapsed = self.num_trades[-num_env_to_analyze]
         for i in range(len(self.num_trades) - num_env_to_analyze + 1, len(self.num_trades)):
@@ -130,21 +146,6 @@ class Env(gym.Env):
         unique, counts = np.unique(collapsed[state], return_counts=True)
         plt.bar(['Action ' + str(i) for i in unique], counts)
         plt.show()
-
-    @property
-    def portfolio_history(self):
-        return self.last_portfolio_history
-
-    @staticmethod
-    def __gen_mapping():
-        rows = []
-        for price_relation_d in range(6):
-            for s1_imb_d in range(3):
-                for s2_imb_d in range(3):
-                    s1_imb_d, s2_imb_d, price_relation_d = str(s1_imb_d), str(s2_imb_d), str(price_relation_d)
-                    rows.append(price_relation_d + s1_imb_d + s2_imb_d)
-
-        return dict(zip(rows, range(len(rows))))
 
     def _simulation(self):
 
