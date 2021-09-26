@@ -3,7 +3,7 @@ from pathlib import Path
 from collections import Callable
 
 import gym
-from gym import spaces
+from gym.spaces import Tuple, Discrete, Box
 
 import numpy as np
 import pandas as pd
@@ -23,8 +23,8 @@ class Env(gym.Env):
             prob: pd.DataFrame,
             fixed_sell_cost: float = 0,
             fixed_buy_cost: float = 0,
-            var_sell_cost: float = 0.005,  # 0.5%
-            var_buy_cost: float = 0.001,  # 0.1%
+            var_sell_cost: float = 0.0,
+            var_buy_cost: float = 0.0,
             reward_func: Callable = portfolio_value,
             start_allocation: List[int] = [1000, -500],
             steps: int = 100,
@@ -38,8 +38,9 @@ class Env(gym.Env):
         self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.states = self._simulation()
 
-        self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
-        self.action_space = spaces.Discrete(2)
+        self.state_space = Tuple((Discrete(len(self.mapping)), Box(low=-100, high=100, shape=(2,))))
+        self.state_space.__dict__['shape'] = (3,)  # Have to force the shape parameter to be compatible with rljax
+        self.action_space = Discrete(2)
         self._max_episode_steps = 10_000
 
         self.state_index = 0
@@ -104,14 +105,14 @@ class Env(gym.Env):
         states = []
         freq = []
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(15, 10))
 
         for key in sorted(collapsed):
             states.append(key)
             freq.append(len(collapsed[key]))
 
         ax.bar(states, freq)
-        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
+        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
         plt.show()
 
     def summarize_decisions(self, num_env_to_analyze=1):
@@ -119,7 +120,7 @@ class Env(gym.Env):
         states = []
         d = {}  # keys are states, values are (unique, counts)
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(15, 10))
         for key in sorted(collapsed):
             states.append(key)
             unique, counts = np.unique(collapsed[key], return_counts=True)
@@ -138,13 +139,15 @@ class Env(gym.Env):
                    )
 
         ax.legend()
-        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
+        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
         plt.show()
 
     def summarize_state_decisions(self, state, num_env_to_analyze=1):
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         unique, counts = np.unique(collapsed[state], return_counts=True)
+        plt.figure(figsize=(15, 10))
         plt.bar(['Action ' + str(i) for i in unique], counts)
+        plt.xticks(['Action ' + str(i) for i in unique], fontsize=14)
         plt.show()
 
     def _simulation(self):
@@ -257,7 +260,7 @@ class Env(gym.Env):
         return costs
 
     def plot(self, data='portfolio_history'):
-        options = ['portfolio_history', 'share_history']
+        options = ['portfolio_history', 'position_history']
         if data == 'help':
             print(options)
             return
@@ -278,20 +281,16 @@ class Env(gym.Env):
             fig.suptitle('Portfolio Value', fontsize=14)
 
             fig.savefig(path.joinpath('portfolio_history.png'), format='png')
-        elif data == 'share_history':
+        elif data == 'position_history':
             array = np.array(self.last_share_history)
             fig, ax = plt.subplots(figsize=(15, 10))
-            ax.plot(array[:, 0], 'b*', label='SH')
-            ax.set_ylabel('SH Shares', fontsize=14)
-
-            ax2 = ax.twinx()
-            ax2.plot(array[:, 1], 'g+', label='SDS')
-            ax2.set_ylabel('SDS Shares', fontsize=14)
+            ax.plot(np.sign(array[:, 0]), 'b-', label='SH')
+            ax.set_ylabel('SH Position', fontsize=14)
 
             fig.legend(fontsize=14)
-            fig.suptitle('Shares', fontsize=14)
+            fig.suptitle('Position', fontsize=14)
 
-            fig.savefig(path.joinpath('share_history.png'), format='png')
+            fig.savefig(path.joinpath('position_history.png'), format='png')
 
     def reset(self):
         self.last_share_history = self.current_share_history
