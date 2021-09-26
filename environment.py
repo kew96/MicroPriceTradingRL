@@ -38,7 +38,9 @@ class Env(gym.Env):
         self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.states = self._simulation()
 
-        self.state_space = Tuple(Discrete(len(self.mapping)), (Box(low=-100, high=100, shape=(2,))))
+        self.state_space = Tuple(
+            (Discrete(len(self.mapping)), Box(low=-100, high=100, shape=(2,)))
+        )
         self.action_space = Discrete(2)
         self._max_episode_steps = 10_000
 
