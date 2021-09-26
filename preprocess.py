@@ -31,7 +31,7 @@ class Preprocess:
             file_prefix: Optional[str] = None
     ):
         self.__data_file = data
-        self.__data = pd.read_csv(data, index_col=0)
+        self.__data = pd.read_csv(data)
         self.__transition_matrix = pd.read_csv(transition_matrix) if transition_matrix else None
 
         if not file_prefix:
@@ -67,7 +67,7 @@ class Preprocess:
         file_name = FILE_PATH.parent.joinpath(self.__file_prefix+'_2.csv')
         self.__data.to_csv(file_name)
 
-        self._process_step2()
+        return self._process_step2()
 
     def __calculate_parameters(self):
         self.__data['mid1'] = (self.__data.bid1 + self.__data.ask1) / 2
@@ -88,8 +88,8 @@ class Preprocess:
                            'mid1', 'mid2', 'residuals']
         df_flip[['ask1', 'bid1', 'ask2', 'bid2', 'residuals']] = -df_flip[['ask1', 'bid1', 'ask2', 'bid2', 'residuals']]
 
-        change1 = self.__df.bid1[len(self.__df) - 1] - df_flip.bid1[0] - 0.01
-        change2 = self.__df.bid2[len(self.__df) - 1] - df_flip.bid2[0] - 0.01
+        change1 = self.__data.bid1[len(self.__data) - 1] - df_flip.bid1[0] - 0.01
+        change2 = self.__data.bid2[len(self.__data) - 1] - df_flip.bid2[0] - 0.01
 
         df_flip[['ask1', 'bid1']] = df_flip[['ask1', 'bid1']] + change1
         df_flip[['ask2', 'bid2']] = df_flip[['ask2', 'bid2']] + change2
@@ -180,7 +180,7 @@ class Preprocess:
         self.__transition_matrix.to_csv(prob_file)
         self.__data.to_csv(data_file)
 
-        self._process_step3()
+        return self._process_step3()
 
     @staticmethod
     def __get_rows_and_cols():
