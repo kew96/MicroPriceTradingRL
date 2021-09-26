@@ -10,7 +10,7 @@ import pandas as pd
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
-from preprocess import Data
+from .preprocess import Data
 
 
 def portfolio_value(portfolio, action, last_state, current_state):
