@@ -280,20 +280,16 @@ class Env(gym.Env):
             fig.suptitle('Portfolio Value', fontsize=14)
 
             fig.savefig(path.joinpath('portfolio_history.png'), format='png')
-        elif data == 'share_history':
+        elif data == 'position_history':
             array = np.array(self.last_share_history)
             fig, ax = plt.subplots(figsize=(15, 10))
-            ax.plot(array[:, 0], 'b*', label='SH')
-            ax.set_ylabel('SH Shares', fontsize=14)
-
-            ax2 = ax.twinx()
-            ax2.plot(array[:, 1], 'g+', label='SDS')
-            ax2.set_ylabel('SDS Shares', fontsize=14)
+            ax.plot(np.sign(array[:, 0]), 'b-', label='SH')
+            ax.set_ylabel('SH Position', fontsize=14)
 
             fig.legend(fontsize=14)
-            fig.suptitle('Shares', fontsize=14)
+            fig.suptitle('Position', fontsize=14)
 
-            fig.savefig(path.joinpath('share_history.png'), format='png')
+            fig.savefig(path.joinpath('position_history.png'), format='png')
 
     def reset(self):
         self.last_share_history = self.current_share_history
