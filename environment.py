@@ -39,7 +39,7 @@ class Env(gym.Env):
         self.states = self._simulation()
 
         self.state_space = Tuple((Discrete(len(self.mapping)), Box(low=-100, high=100, shape=(2,))))
-        self.state_space.__dict__['shape'] = (3,)
+        self.state_space.__dict__['shape'] = (3,)  # Have to force the shape parameter to be compatible with rljax
         self.action_space = Discrete(2)
         self._max_episode_steps = 10_000
 
