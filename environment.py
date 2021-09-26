@@ -112,7 +112,7 @@ class Env(gym.Env):
             freq.append(len(collapsed[key]))
 
         ax.bar(states, freq)
-        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
+        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
         plt.show()
 
     def summarize_decisions(self, num_env_to_analyze=1):
@@ -139,7 +139,7 @@ class Env(gym.Env):
                    )
 
         ax.legend()
-        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize='x-small')
+        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
         plt.show()
 
     def summarize_state_decisions(self, state, num_env_to_analyze=1):
@@ -147,6 +147,7 @@ class Env(gym.Env):
         unique, counts = np.unique(collapsed[state], return_counts=True)
         plt.figure(figsize=(15, 10))
         plt.bar(['Action ' + str(i) for i in unique], counts)
+        plt.xticks(['Action ' + str(i) for i in unique], fontsize=14)
         plt.show()
 
     def _simulation(self):
@@ -259,7 +260,7 @@ class Env(gym.Env):
         return costs
 
     def plot(self, data='portfolio_history'):
-        options = ['portfolio_history', 'share_history']
+        options = ['portfolio_history', 'position_history']
         if data == 'help':
             print(options)
             return
