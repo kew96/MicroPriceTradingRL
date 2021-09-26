@@ -23,8 +23,8 @@ class Env(gym.Env):
             prob: pd.DataFrame,
             fixed_sell_cost: float = 0,
             fixed_buy_cost: float = 0,
-            var_sell_cost: float = 0.005,  # 0.5%
-            var_buy_cost: float = 0.001,  # 0.1%
+            var_sell_cost: float = 0.0,
+            var_buy_cost: float = 0.0,
             reward_func: Callable = portfolio_value,
             start_allocation: List[int] = [1000, -500],
             steps: int = 100,
