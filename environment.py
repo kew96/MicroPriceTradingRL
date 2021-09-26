@@ -3,7 +3,7 @@ from pathlib import Path
 from collections import Callable
 
 import gym
-from gym import spaces
+from gym.spaces import Tuple, Discrete, Box
 
 import numpy as np
 import pandas as pd
@@ -38,8 +38,8 @@ class Env(gym.Env):
         self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.states = self._simulation()
 
-        self.state_space = spaces.Box(low=-100, high=100, shape=(3,))
-        self.action_space = spaces.Discrete(2)
+        self.state_space = Tuple(Discrete(len(self.mapping)), (Box(low=-100, high=100, shape=(2,))))
+        self.action_space = Discrete(2)
         self._max_episode_steps = 10_000
 
         self.state_index = 0
