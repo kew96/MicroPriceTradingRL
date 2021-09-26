@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union, Optional
 from pathlib import Path
 from collections import Callable
 
@@ -10,6 +10,8 @@ import pandas as pd
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
+from preprocess import Data
+
 
 def portfolio_value(portfolio, action, last_state, current_state):
     return sum(portfolio)
@@ -19,8 +21,8 @@ class Env(gym.Env):
 
     def __init__(
             self,
-            data: pd.DataFrame,
-            prob: pd.DataFrame,
+            data: Union[pd.DataFrame, Data],
+            prob: Optional[pd.DataFrame] = None,
             fixed_sell_cost: float = 0,
             fixed_buy_cost: float = 0,
             var_sell_cost: float = 0.0,
@@ -29,8 +31,16 @@ class Env(gym.Env):
             start_allocation: List[int] = [1000, -500],
             steps: int = 100,
     ):
-        self.df = data
-        self.prob = prob
+        if isinstance(data, pd.DataFrame) and isinstance(prob, pd.DataFrame):
+            self.df = data
+            self.prob = prob
+        elif isinstance(data, Data) and not prob:
+            self.df = data.data
+            self.prob = data.transition_matrix
+        else:
+            raise TypeError(
+                '"data" and "prob" must both be DataFrames or "data" must be of type Data and "prob" must be None'
+            )
         self.reward_func = reward_func
         self.ite = steps or len(data) // 2 - 1
         
