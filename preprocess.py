@@ -46,7 +46,7 @@ class Preprocess:
         self.__imb1_num = imb1_num
         self.__imb2_num = imb2_num
 
-    def process_step1(self):
+    def _process_step1(self):
         # remove the first row because the time interval btw row 0 and 1 is not 10 seconds
         self.__data = self.__data.drop(index=[0])
         self.__data = self.__data.reset_index(drop=True)
@@ -67,7 +67,7 @@ class Preprocess:
         file_name = FILE_PATH.parent.joinpath(self.__file_prefix+'_2.csv')
         self.__data.to_csv(file_name)
 
-        self.process_step2()
+        self._process_step2()
 
     def __calculate_parameters(self):
         self.__data['mid1'] = (self.__data.bid1 + self.__data.ask1) / 2
@@ -138,7 +138,7 @@ class Preprocess:
         self.__data['imb1_bucket'] = pd.cut(self.__data.imb1, self.__imb1_num, labels=False)
         self.__data['imb2_bucket'] = pd.cut(self.__data.imb2, self.__imb2_num, labels=False)
 
-    def process_step2(self):
+    def _process_step2(self):
         self.__data['dM1'] = 1 * (self.__data.mid1_diff > 0)
         self.__data.dM1 -= 1 * (self.__data.mid1_diff < 0)
         self.__data['dM2'] = 1 * (self.__data.mid2_diff > 0)
@@ -180,7 +180,7 @@ class Preprocess:
         self.__transition_matrix.to_csv(prob_file)
         self.__data.to_csv(data_file)
 
-        self.process_step3()
+        self._process_step3()
 
     @staticmethod
     def __get_rows_and_cols():
@@ -198,7 +198,7 @@ class Preprocess:
 
         return rows, cols
 
-    def process_step3(self):
+    def _process_step3(self):
         Gstar, BC, G1, B, Q, T, R, K = self.__matrix_Gstar_BC_G1()
 
         self.__data['current_state'] = self.__data['current_state'].astype(str)
@@ -263,4 +263,15 @@ class Preprocess:
         return Gstar, BC, G1, B, Q, T, R, K
 
     def process(self):
-        return self.process_step1()
+        if '2' in self.__data_file:
+            return self._process_step2()
+        elif '3' in self.__data_file:
+            if not self.__transition_matrix:
+                raise NameError('No transition matrix given')
+            return self._process_step3()
+        elif '4' in self.__data_file:
+            if not self.__transition_matrix:
+                raise NameError('No transition matrix given')
+            return Data(self.__data, self.__transition_matrix)
+        else:
+            return self._process_step1()
