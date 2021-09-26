@@ -105,7 +105,7 @@ class Env(gym.Env):
         states = []
         freq = []
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(15, 10))
 
         for key in sorted(collapsed):
             states.append(key)
@@ -120,7 +120,7 @@ class Env(gym.Env):
         states = []
         d = {}  # keys are states, values are (unique, counts)
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(15, 10))
         for key in sorted(collapsed):
             states.append(key)
             unique, counts = np.unique(collapsed[key], return_counts=True)
@@ -145,6 +145,7 @@ class Env(gym.Env):
     def summarize_state_decisions(self, state, num_env_to_analyze=1):
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         unique, counts = np.unique(collapsed[state], return_counts=True)
+        plt.figure(figsize=(15, 10))
         plt.bar(['Action ' + str(i) for i in unique], counts)
         plt.show()
 
