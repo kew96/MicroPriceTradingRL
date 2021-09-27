@@ -32,6 +32,58 @@ class Env(gym.Env):
     :parameter steps: the number of 10 second steps created for each simulated data stream.
                      Note: each row in attribute data is a 10 second step
 
+    Attributes:
+        :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
+        :parameter prob: transition matrix between states. optional if using class data
+        :parameter fixed_sell_cost: trading cost associated with selling
+        :parameter fixed_buy_cost: trading cost associated with buying
+        :parameter var_sell_cost: trading cost * num_shares
+        :parameter var_buy_cost: trading cost * num_shares
+        :parameter reward_func: callable that takes current portfolio, action,
+                                previous state and current state and returns the reward
+        :parameter start_allocation: how much $ starting short/long each position.
+                                     Defines the amount you trade for each position
+        :parameter steps: the number of 10 second steps created for each simulated data stream.
+                         Note: each row in attribute data is a 10 second step
+
+        ite: steps or length of data
+        mapping: set to self.get_mapping
+        __reverse_mapping: flips the keys and values from self.mapping
+        states: all of the states from _simulation
+        state_space: all potential states that the agent can experience
+        action_space: all potential actions that the agent can perform
+        _max_epidsode_steps: CURRENTLY UNKNOWN
+        state_index: the index of the current state that the environment is in
+        last_state: an array of the previous state the environment was in
+        current_state: an array of the current state the environment is in
+        terminal: a boolean flag if we are in the terminal state
+        portfolio: the current portfolio allocation where the first entry is the cash position
+        current_portfolio_history: the portfolio allocation over all steps
+        shares: the current number of shares held
+        current_share_history: the history of the number of shares held over time
+        steps_since_trade: CURRENTLY UNUSED
+        actions: CURRENTLY UNUSED
+        actions_history: CURRENTLY UNUSED
+        num_trades: a list of dictionaries containing the number of trades made in respective states
+        last_share_history: the complete history of the number of shares held over time
+        last_portfolio_history: the complete portfolio allocation over all steps and iterations
+
+    Methods:
+        collapse_num_trades_dict
+        plot_state_frequency
+        summarize_decisions
+        summarize_state_decisions
+        _simulation
+        step
+        trade
+        update_num_trades
+        update_portfolio
+        liquidate
+        trading_costs
+        plot
+        reset
+        render
+
     """
 
     def __init__(
