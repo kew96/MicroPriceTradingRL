@@ -18,6 +18,21 @@ def portfolio_value(portfolio, action, last_state, current_state):
 
 
 class Env(gym.Env):
+    """
+    :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
+    :parameter prob: transition matrix between states. optional if using class data
+    :parameter fixed_sell_cost: trading cost associated with selling
+    :parameter fixed_buy_cost: trading cost associated with buying
+    :parameter var_sell_cost: trading cost * num_shares
+    :parameter var_buy_cost: trading cost * num_shares
+    :parameter reward_func: callable that takes current portfolio, action,
+                            previous state and current state and returns the reward
+    :parameter start_allocation: how much $ starting short/long each position.
+                                 Defines the amount you trade for each position
+    :parameter steps: the number of 10 second steps created for each simulated data stream.
+                     Note: each row in attribute data is a 10 second step
+
+    """
 
     def __init__(
             self,
@@ -51,6 +66,8 @@ class Env(gym.Env):
         self.state_space = Tuple((Discrete(len(self.mapping)), Box(low=-100, high=100, shape=(2,))))
         self.state_space.__dict__['shape'] = (3,)  # Have to force the shape parameter to be compatible with rljax
         self.action_space = Discrete(2)
+
+        ## TODO: does open AI GYM need this?
         self._max_episode_steps = 10_000
 
         self.state_index = 0
@@ -72,7 +89,9 @@ class Env(gym.Env):
         self.shares = [start_allocation[0]/self.current_state[1], start_allocation[1]/self.current_state[2]]
         self.current_share_history = [self.shares]
 
+        #TODO: delete
         self.steps_since_trade = 0
+
         self.actions = list()
         self.actions_history = list()
 
@@ -93,6 +112,10 @@ class Env(gym.Env):
 
     @staticmethod
     def get_mapping():
+        '''
+
+        :return:
+        '''
         rows = []
         for price_relation_d in range(6):
             for s1_imb_d in range(3):
@@ -103,6 +126,12 @@ class Env(gym.Env):
         return dict(zip(rows, range(len(rows))))
       
     def collapse_num_trades_dict(self, num_env_to_analyze=1):
+        """
+        This combines the last num_env_to_analyze entries in self.num_trades
+        Every time env.reset() gets called, a new entry in self.num_trades
+        :param num_env_to_analyze:  the number of
+        :return:
+        """
         collapsed = self.num_trades[-num_env_to_analyze]
         for i in range(len(self.num_trades) - num_env_to_analyze + 1, len(self.num_trades)):
             for k, v in self.num_trades[i].items():
