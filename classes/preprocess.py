@@ -179,7 +179,7 @@ class Preprocess:
         prob = prob[list(m4.columns)]  # reorder elements
         self.__transition_matrix = prob
 
-        prob_file = ASSET_DATA_PATH.joinpath('', self.__file_prefix + '_transition_matrix.csv')
+        prob_file = ASSET_DATA_PATH.joinpath(self.__file_prefix[:-5] + '_transition_matrix.csv')
         data_file = ASSET_DATA_PATH.joinpath(self.__file_prefix + '_3.csv')
 
         self.__transition_matrix.to_csv(prob_file)
