@@ -23,13 +23,14 @@ class Env(gym.Env):
             self,
             data: Union[pd.DataFrame, Data],
             prob: Optional[pd.DataFrame] = None,
+            no_trade_period: int = 0,
             fixed_sell_cost: float = 0,
             fixed_buy_cost: float = 0,
             var_sell_cost: float = 0.0,
             var_buy_cost: float = 0.0,
             reward_func: Callable = portfolio_value,
             start_allocation: List[int] = [1000, -500],
-            steps: int = 100,
+            steps: int = 1000,
     ):
         if isinstance(data, pd.DataFrame) and isinstance(prob, pd.DataFrame):
             self.df = data
@@ -64,6 +65,9 @@ class Env(gym.Env):
         self.fixed_buy_cost = fixed_buy_cost
         self.var_sell_cost = var_sell_cost
         self.var_buy_cost = var_buy_cost
+
+        self.__traded = False
+        self.no_trade_period = no_trade_period
 
         # cash, SH position, SDS position
         self.portfolio = [-sum(start_allocation), *start_allocation]
@@ -194,10 +198,15 @@ class Env(gym.Env):
     def step(self, action):
         self.portfolio = self.trade(action)
 
-        self.state_index += 1
         self.last_state = self.current_state
-        self.current_state = self.states.iloc[self.state_index, :]
-        self.terminal = self.state_index == len(self.states) - 1
+        if self.__traded:
+            self.state_index += 1 + self.no_trade_period
+            self.current_state = self.states.iloc[min(self.state_index, len(self.states)-1), :]
+            self.__traded = False
+        else:
+            self.state_index += 1
+            self.current_state = self.states.iloc[self.state_index, :]
+        self.terminal = self.state_index >= len(self.states) - 1
 
         self.portfolio = self.update_portfolio()
 
@@ -217,6 +226,7 @@ class Env(gym.Env):
             costs = self.trading_costs(self.shares[0], sh)
             costs += self.trading_costs(self.shares[1], sds)
             cash -= sh + sds + costs
+            self.__traded = True
             self.portfolio = [cash, sh, sds]
             self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
             self.update_num_trades(action)
@@ -227,6 +237,7 @@ class Env(gym.Env):
             costs = self.trading_costs(self.shares[0], sh)
             costs += self.trading_costs(self.shares[1], sds)
             cash -= sh + sds + costs
+            self.__traded == True
             self.portfolio = [cash, sh, sds]
             self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
             self.update_num_trades(action)
