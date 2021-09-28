@@ -18,6 +18,73 @@ def portfolio_value(portfolio, action, last_state, current_state):
 
 
 class Env(gym.Env):
+    """
+    :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
+    :parameter prob: transition matrix between states. optional if using class data
+    :parameter fixed_sell_cost: trading cost associated with selling
+    :parameter fixed_buy_cost: trading cost associated with buying
+    :parameter var_sell_cost: trading cost * num_shares
+    :parameter var_buy_cost: trading cost * num_shares
+    :parameter reward_func: callable that takes current portfolio, action,
+                            previous state and current state and returns the reward
+    :parameter start_allocation: how much $ starting short/long each position.
+                                 Defines the amount you trade for each position
+    :parameter steps: the number of 10 second steps created for each simulated data stream.
+                     Note: each row in attribute data is a 10 second step
+
+    Attributes:
+        :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
+        :parameter prob: transition matrix between states. optional if using class data
+        :parameter fixed_sell_cost: trading cost associated with selling
+        :parameter fixed_buy_cost: trading cost associated with buying
+        :parameter var_sell_cost: trading cost * num_shares
+        :parameter var_buy_cost: trading cost * num_shares
+        :parameter reward_func: callable that takes current portfolio, action,
+                                previous state and current state and returns the reward
+        :parameter start_allocation: how much $ starting short/long each position.
+                                     Defines the amount you trade for each position
+        :parameter steps: the number of 10 second steps created for each simulated data stream.
+                         Note: each row in attribute data is a 10 second step
+
+        ite: steps or length of data
+        mapping: set to self.get_mapping
+        __reverse_mapping: flips the keys and values from self.mapping
+        states: all of the states from _simulation
+        state_space: all potential states that the agent can experience
+        action_space: all potential actions that the agent can perform
+        _max_epidsode_steps: CURRENTLY UNKNOWN
+        state_index: the index of the current state that the environment is in
+        last_state: an array of the previous state the environment was in
+        current_state: an array of the current state the environment is in
+        terminal: a boolean flag if we are in the terminal state
+        portfolio: the current portfolio allocation where the first entry is the cash position
+        current_portfolio_history: the portfolio allocation over all steps
+        shares: the current number of shares held
+        current_share_history: the history of the number of shares held over time
+        steps_since_trade: CURRENTLY UNUSED
+        actions: CURRENTLY UNUSED
+        actions_history: CURRENTLY UNUSED
+        num_trades: a list of dictionaries containing the number of trades made in respective states
+        last_share_history: the complete history of the number of shares held over time
+        last_portfolio_history: the complete portfolio allocation over all steps and iterations
+
+    Methods:
+        collapse_num_trades_dict
+        plot_state_frequency
+        summarize_decisions
+        summarize_state_decisions
+        _simulation
+        step
+        trade
+        update_num_trades
+        update_portfolio
+        liquidate
+        trading_costs
+        plot
+        reset
+        render
+
+    """
 
     def __init__(
             self,
@@ -52,6 +119,8 @@ class Env(gym.Env):
         self.state_space = Tuple((Discrete(len(self.mapping)), Box(low=-100, high=100, shape=(2,))))
         self.state_space.__dict__['shape'] = (3,)  # Have to force the shape parameter to be compatible with rljax
         self.action_space = Discrete(2)
+
+        ## TODO: does open AI GYM need this?
         self._max_episode_steps = 10_000
 
         self.state_index = 0
@@ -76,7 +145,9 @@ class Env(gym.Env):
         self.shares = [start_allocation[0]/self.current_state[1], start_allocation[1]/self.current_state[2]]
         self.current_share_history = [self.shares]
 
+        #TODO: delete
         self.steps_since_trade = 0
+
         self.actions = list()
         self.actions_history = list()
 
@@ -102,6 +173,10 @@ class Env(gym.Env):
 
     @staticmethod
     def get_mapping():
+        '''
+
+        :return: creates a mapping from integers to the states (e.g. '401')
+        '''
         rows = []
         for price_relation_d in range(6):
             for s1_imb_d in range(3):
@@ -112,6 +187,12 @@ class Env(gym.Env):
         return dict(zip(rows, range(len(rows))))
       
     def collapse_num_trades_dict(self, num_env_to_analyze=1):
+        """
+        This combines the last num_env_to_analyze dictionaries in self.num_trades into one dictionary
+        Every time env.reset() gets called, a new entry in self.num_trades is appended
+        :param num_env_to_analyze: integer representing number of dictionaries in self.num_trades to be combined
+        :return:
+        """
         collapsed = self.num_trades[-num_env_to_analyze]
         for i in range(len(self.num_trades) - num_env_to_analyze + 1, len(self.num_trades)):
             for k, v in self.num_trades[i].items():
@@ -120,6 +201,10 @@ class Env(gym.Env):
         return collapsed
 
     def plot_state_frequency(self):
+        """
+        Function to plot number of observations in each state. Will show distribution of states
+        :return: plot
+        """
         collapsed = self.collapse_num_trades_dict(2)
         states = []
         freq = []
@@ -135,6 +220,11 @@ class Env(gym.Env):
         plt.show()
 
     def summarize_decisions(self, num_env_to_analyze=1):
+        """
+        This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
+        :param num_env_to_analyze: See function collapse_num_trades
+        :return: plot
+        """
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         states = []
         d = {}  # keys are states, values are (unique, counts)
@@ -162,6 +252,13 @@ class Env(gym.Env):
         plt.show()
 
     def summarize_state_decisions(self, state, num_env_to_analyze=1):
+        """
+        This plots the distribution of actions in a given state.
+
+        :param num_env_to_analyze: See function collapse_num_trades
+        :param state: the state of which we plot the actions made
+        :return: plot
+        """
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         unique, counts = np.unique(collapsed[state], return_counts=True)
         plt.figure(figsize=(15, 10))
@@ -170,6 +267,11 @@ class Env(gym.Env):
         plt.show()
 
     def _simulation(self):
+        """
+        Creates simulated data for the given number of steps (see self.ite).
+        Utilizes the self.prob as transition matrix
+        :return:
+        """
 
         simu = [[str(self.df.current_state.iloc[0]), self.df.mid1.iloc[0], self.df.mid2.iloc[0]]]
         tick = 0.01
