@@ -166,7 +166,7 @@ class Env(gym.Env):
     def get_mapping():
         '''
 
-        :return:
+        :return: creates a mapping from integers to the states (e.g. '401')
         '''
         rows = []
         for price_relation_d in range(6):
@@ -179,9 +179,9 @@ class Env(gym.Env):
       
     def collapse_num_trades_dict(self, num_env_to_analyze=1):
         """
-        This combines the last num_env_to_analyze entries in self.num_trades
-        Every time env.reset() gets called, a new entry in self.num_trades
-        :param num_env_to_analyze:  the number of
+        This combines the last num_env_to_analyze dictionaries in self.num_trades into one dictionary
+        Every time env.reset() gets called, a new entry in self.num_trades is appended
+        :param num_env_to_analyze: integer representing number of dictionaries in self.num_trades to be combined
         :return:
         """
         collapsed = self.num_trades[-num_env_to_analyze]
@@ -192,6 +192,10 @@ class Env(gym.Env):
         return collapsed
 
     def plot_state_frequency(self):
+        """
+        Function to plot number of observations in each state. Will show distribution of states
+        :return: plot
+        """
         collapsed = self.collapse_num_trades_dict(2)
         states = []
         freq = []
@@ -207,6 +211,11 @@ class Env(gym.Env):
         plt.show()
 
     def summarize_decisions(self, num_env_to_analyze=1):
+        """
+        This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
+        :param num_env_to_analyze: See function collapse_num_trades
+        :return: plot
+        """
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         states = []
         d = {}  # keys are states, values are (unique, counts)
@@ -234,6 +243,13 @@ class Env(gym.Env):
         plt.show()
 
     def summarize_state_decisions(self, state, num_env_to_analyze=1):
+        """
+        This plots the distribution of actions in a given state.
+
+        :param num_env_to_analyze: See function collapse_num_trades
+        :param state: the state of which we plot the actions made
+        :return: plot
+        """
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         unique, counts = np.unique(collapsed[state], return_counts=True)
         plt.figure(figsize=(15, 10))
@@ -242,6 +258,11 @@ class Env(gym.Env):
         plt.show()
 
     def _simulation(self):
+        """
+        Creates simulated data for the given number of steps (see self.ite).
+        Utilizes the self.prob as transition matrix
+        :return:
+        """
 
         simu = [[str(self.df.current_state.iloc[0]), self.df.mid1.iloc[0], self.df.mid2.iloc[0]]]
         tick = 0.01
