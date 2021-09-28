@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 from .preprocess import Data
 
 
-def portfolio_value(portfolio, action, last_state, current_state):
-    return sum(portfolio)
+def portfolio_value(current_portfolio, last_portfolio, action, last_state, current_state):
+    return sum(current_portfolio)
 
 
 class Env(gym.Env):
@@ -25,7 +25,7 @@ class Env(gym.Env):
     :parameter fixed_buy_cost: trading cost associated with buying
     :parameter var_sell_cost: trading cost * num_shares
     :parameter var_buy_cost: trading cost * num_shares
-    :parameter reward_func: callable that takes current portfolio, action,
+    :parameter reward_func: callable that takes current portfolio, previous portfolio, action,
                             previous state and current state and returns the reward
     :parameter start_allocation: how much $ starting short/long each position.
                                  Defines the amount you trade for each position
