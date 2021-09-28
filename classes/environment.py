@@ -80,6 +80,11 @@ class Env(gym.Env):
         self.actions = list()
         self.actions_history = list()
 
+        self.current_absolute_position = [1]
+        self.absolute_position = [1]
+        self.current_trade_indices = [0]
+        self.trade_indices = [0]
+
         # dict: keys are states, values are lists of actions taken in that state
         self.num_trades = [dict()]
 
@@ -199,13 +204,22 @@ class Env(gym.Env):
         self.portfolio = self.trade(action)
 
         self.last_state = self.current_state
+
+        pos = np.sign(self.shares[0])
         if self.__traded:
+            start = self.state_index
             self.state_index += 1 + self.no_trade_period
-            self.current_state = self.states.iloc[min(self.state_index, len(self.states)-1), :]
+            stop = min(self.state_index, len(self.states)-1)
+            self.current_state = self.states.iloc[stop, :]
+            self.current_trade_indices.extend(range(start, stop))
+            self.current_absolute_position.extend([pos]*(stop-start))
             self.__traded = False
         else:
             self.state_index += 1
             self.current_state = self.states.iloc[self.state_index, :]
+            self.current_trade_indices.append(self.state_index)
+            self.current_absolute_position.append(pos)
+
         self.terminal = self.state_index >= len(self.states) - 1
 
         self.portfolio = self.update_portfolio()
@@ -237,7 +251,7 @@ class Env(gym.Env):
             costs = self.trading_costs(self.shares[0], sh)
             costs += self.trading_costs(self.shares[1], sds)
             cash -= sh + sds + costs
-            self.__traded == True
+            self.__traded = True
             self.portfolio = [cash, sh, sds]
             self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
             self.update_num_trades(action)
@@ -288,7 +302,7 @@ class Env(gym.Env):
         elif data not in options:
             raise LookupError(f'{data} is not an option. Type "help" for more info.')
 
-        path = Path(__file__).parent.joinpath('figures')
+        path = Path(__file__).parent.parent.parent.joinpath('figures')
         if not path.exists():
             path.mkdir()
 
@@ -303,9 +317,8 @@ class Env(gym.Env):
 
             fig.savefig(path.joinpath('portfolio_history.png'), format='png')
         elif data == 'position_history':
-            array = np.array(self.last_share_history)
             fig, ax = plt.subplots(figsize=(15, 10))
-            ax.plot(np.sign(array[:, 0]), 'b-', label='SH')
+            ax.plot(self.trade_indices, self.absolute_position, 'b-', label='SH')
             ax.set_ylabel('SH Position', fontsize=14)
 
             fig.legend(fontsize=14)
@@ -316,6 +329,9 @@ class Env(gym.Env):
     def reset(self):
         self.last_share_history = self.current_share_history
         self.last_portfolio_history = self.current_portfolio_history
+
+        self.absolute_position = self.current_absolute_position
+        self.trade_indices = self.current_trade_indices
 
         self.states = self._simulation()
 
@@ -332,6 +348,9 @@ class Env(gym.Env):
             self.start_allocation[1] / self.current_state[2]
         ]
         self.current_share_history = [self.shares]
+
+        self.current_trade_indices = [0]
+        self.current_absolute_position = [1]
 
         self.steps_since_trade = 0
         self.actions = list()
