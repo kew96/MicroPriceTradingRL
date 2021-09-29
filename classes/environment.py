@@ -247,7 +247,7 @@ class Env(gym.Env):
             freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in sorted(d.keys())]
 
         ax.bar(sorted(d.keys()), freq_dict[0], label=self.action_title[0])
-        for i in range(1, self.action_space.n + 3):
+        for i in range(1, self.action_space.n + 2):
             ax.bar(sorted(d.keys()),
                    freq_dict[i],
                    label=self.action_title[i],
