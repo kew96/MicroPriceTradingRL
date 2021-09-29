@@ -111,14 +111,14 @@ class Env(gym.Env):
             )
         self.reward_func = reward_func
         self.ite = steps or len(data) // 2 - 1
-        
+
         self.mapping = self.get_mapping()
         self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.states = self._simulation()
 
         self.state_space = Tuple((Discrete(len(self.mapping)), Box(low=-100, high=100, shape=(2,))))
         self.state_space.__dict__['shape'] = (3,)  # Have to force the shape parameter to be compatible with rljax
-        self.action_space = Discrete(2)
+        self.action_space = Discrete(3)
 
         ## TODO: does open AI GYM need this?
         self._max_episode_steps = 10_000
@@ -192,7 +192,7 @@ class Env(gym.Env):
                     rows.append(price_relation_d + s1_imb_d + s2_imb_d)
 
         return dict(zip(rows, range(len(rows))))
-      
+
     def collapse_num_trades_dict(self, num_env_to_analyze=1):
         """
         This combines the last num_env_to_analyze dictionaries in self.num_trades into one dictionary
