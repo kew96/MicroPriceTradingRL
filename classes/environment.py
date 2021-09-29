@@ -307,6 +307,8 @@ class Env(gym.Env):
 
         self.last_state = self.current_state
 
+        last_portfolio = self.portfolio.copy()
+
         pos = np.sign(self.shares[0])
         if self.__traded:
             start = self.state_index
@@ -328,7 +330,7 @@ class Env(gym.Env):
 
         return (
             jnp.asarray(self.current_state.values),
-            self.reward_func(self.portfolio, action, self.last_state, self.current_state),
+            self.reward_func(self.portfolio, last_portfolio, action, self.last_state, self.current_state),
             self.terminal,
             {}
         )
