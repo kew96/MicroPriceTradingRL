@@ -158,6 +158,13 @@ class Env(gym.Env):
 
         # dict: keys are states, values are lists of actions taken in that state
         self.num_trades = [dict()]
+        self.action_title = {
+            0: "Long Asset 1 / Short Asset 2",
+            1: "Short Asset 1 / Long Asset 2",
+            2: "Hold",
+            3: "Tried Long/Short but already Long/Short",
+            4: "Tried Short/Long but already Short/Long"
+        }
 
         # Need a history for plotting
         self.last_share_history = self.current_share_history
@@ -235,15 +242,15 @@ class Env(gym.Env):
             unique, counts = np.unique(collapsed[key], return_counts=True)
             d[key] = (unique, counts)
         freq_dict = {}
-        for i in range(self.action_space.n+1):
+        for i in range(self.action_space.n+3):
 
             freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in sorted(d.keys())]
 
-        ax.bar(sorted(d.keys()), freq_dict[0], label='Action 0')
-        for i in range(1, self.action_space.n + 1):
+        ax.bar(sorted(d.keys()), freq_dict[0], label=self.action_title[0])
+        for i in range(1, self.action_space.n + 3):
             ax.bar(sorted(d.keys()),
                    freq_dict[i],
-                   label='Action ' + str(i),
+                   label=self.action_title[i],
                    bottom=sum([np.array(freq_dict[j]) for j in range(i)])
                    )
 
@@ -262,8 +269,8 @@ class Env(gym.Env):
         collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
         unique, counts = np.unique(collapsed[state], return_counts=True)
         plt.figure(figsize=(15, 10))
-        plt.bar(['Action ' + str(i) for i in unique], counts)
-        plt.xticks(['Action ' + str(i) for i in unique], fontsize=14)
+        plt.bar([self.action_title[i] for i in unique], counts)
+        plt.xticks([self.action_title[i] for i in unique], fontsize=14)
         plt.show()
 
     def _simulation(self):
@@ -360,7 +367,10 @@ class Env(gym.Env):
             self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
             self.update_num_trades(action)
         else:
-            self.update_num_trades(2)
+            if action == 0 or action == 1:
+                self.update_num_trades(action+3)
+            else:
+                self.update_num_trades(2)
 
         self.current_share_history.append(self.shares)
         self.current_portfolio_history.append(self.portfolio)
