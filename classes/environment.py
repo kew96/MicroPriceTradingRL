@@ -86,6 +86,21 @@ class Env(gym.Env):
 
     """
 
+    # 0 TODO: Switch out data
+    # 1 TODO: Trading costs, half of bid/ask spread (fixed of 0.005)
+    # RERUN
+    # 2 TODO: Discrete state space
+    # 3 TODO: Plot trade points
+    # RERUN
+    # 4 TODO: Action space for buying/selling/holding
+    #   4.1 TODO: Hard stop conditions (run out of money)
+    # RERUN
+    # 5 TODO: Reward function (purchase price - mid-price - baseline)
+    # RERUN
+    # 6 TODO: Replay buffer in environment
+    # RERUN
+    # 7 TODO: stable_baselines3
+
     def __init__(
             self,
             data: Union[pd.DataFrame, Data],
