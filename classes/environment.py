@@ -86,9 +86,6 @@ class Env(gym.Env):
 
     """
 
-    # 0 TODO: Switch out data
-    # 1 TODO: Trading costs, half of bid/ask spread (fixed of 0.005)
-    # RERUN
     # 2 TODO: Discrete state space
     # 3 TODO: Plot trade points
     # RERUN
