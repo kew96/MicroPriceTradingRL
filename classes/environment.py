@@ -1,9 +1,10 @@
-from typing import List, Union, Optional
 from pathlib import Path
+from copy import deepcopy
 from collections import Callable
+from typing import List, Union, Optional
 
 import gym
-from gym.spaces import Tuple, Discrete, Box
+from gym.spaces import Discrete, MultiDiscrete
 
 import numpy as np
 import pandas as pd
@@ -50,9 +51,9 @@ class Env(gym.Env):
         mapping: set to self.get_mapping
         __reverse_mapping: flips the keys and values from self.mapping
         states: all of the states from _simulation
-        state_space: all potential states that the agent can experience
+        observation_space: all potential states that the agent can experience
         action_space: all potential actions that the agent can perform
-        _max_epidsode_steps: CURRENTLY UNKNOWN
+        _max_episode_steps: Required by OpenAI Gym
         state_index: the index of the current state that the environment is in
         last_state: an array of the previous state the environment was in
         current_state: an array of the current state the environment is in
@@ -61,9 +62,6 @@ class Env(gym.Env):
         current_portfolio_history: the portfolio allocation over all steps
         shares: the current number of shares held
         current_share_history: the history of the number of shares held over time
-        steps_since_trade: CURRENTLY UNUSED
-        actions: CURRENTLY UNUSED
-        actions_history: CURRENTLY UNUSED
         num_trades: a list of dictionaries containing the number of trades made in respective states
         last_share_history: the complete history of the number of shares held over time
         last_portfolio_history: the complete portfolio allocation over all steps and iterations
@@ -128,11 +126,14 @@ class Env(gym.Env):
         self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.states = self._simulation()
 
-        self.state_space = Tuple((Discrete(len(self.mapping)), Box(low=-100, high=100, shape=(2,))))
-        self.state_space.__dict__['shape'] = (3,)  # Have to force the shape parameter to be compatible with rljax
+        self.observation_space = MultiDiscrete([
+            len(self.mapping),  # Set of residual imbalance states
+            self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
+            self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
+
+        ])
         self.action_space = Discrete(3)
 
-        ## TODO: does open AI GYM need this?
         self._max_episode_steps = 10_000
 
         self.state_index = 0
@@ -156,12 +157,6 @@ class Env(gym.Env):
 
         self.shares = [start_allocation[0]/self.current_state[1], start_allocation[1]/self.current_state[2]]
         self.current_share_history = [self.shares]
-
-        #TODO: delete
-        self.steps_since_trade = 0
-
-        self.actions = list()
-        self.actions_history = list()
 
         self.current_absolute_position = [1]
         self.absolute_position = [1]
@@ -478,13 +473,28 @@ class Env(gym.Env):
         self.current_trade_indices = [0]
         self.current_absolute_position = [1]
 
-        self.steps_since_trade = 0
-        self.actions = list()
-        self.actions_history = list()
-
         self.num_trades.append(dict())
 
         return jnp.asarray(self.current_state.values)
+
+    def __copy__(self):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result.__dict__.update(self.__dict__)
+        return result
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, deepcopy(v, memo))
+        return result
+
+    def copy_env(self):
+        new_env = self.__deepcopy__(dict())
+        new_env.reset()
+        return new_env
 
     def render(self, mode="human"):
         return None
