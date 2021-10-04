@@ -475,7 +475,7 @@ class Env(gym.Env):
 
             fig.savefig(path.joinpath('position_history.png'), format='png')
         elif data == 'asset_paths':
-            fig, axs = plt.subplots(2, figsize=(15, 10))
+            fig, axs = plt.subplots(2, figsize=(15, 13))
             axs[0].plot(self.trade_indices, self.last_states.iloc[:, 1], c='k', alpha=0.7)
             axs[0].set_title('Asset 1')
 
@@ -500,7 +500,7 @@ class Env(gym.Env):
                     label='Short/Long'
                 )
 
-            fig.legend(fontsize=14)
+            axs[0].legend(fontsize=14)
             fig.suptitle('Asset Paths', fontsize=14)
 
             fig.savefig(path.joinpath('asset_paths.png'), format='png')
