@@ -84,16 +84,14 @@ class Env(gym.Env):
 
     """
 
-    # 1 TODO: Plot trade points
+    # 1 TODO: Action space for buying/selling/holding
+    #   1.1 TODO: Hard stop conditions (run out of money)
     # RERUN
-    # 2 TODO: Action space for buying/selling/holding
-    #   2.1 TODO: Hard stop conditions (run out of money)
+    # 2 TODO: Reward function (purchase price - mid-price - baseline)
     # RERUN
-    # 3 TODO: Reward function (purchase price - mid-price - baseline)
+    # 3 TODO: Replay buffer in environment
     # RERUN
-    # 4 TODO: Replay buffer in environment
-    # RERUN
-    # 5 TODO: stable_baselines3
+    # 4 TODO: stable_baselines3
 
     def __init__(
             self,
@@ -124,6 +122,7 @@ class Env(gym.Env):
         self.mapping = self.get_mapping()
         self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.states = self._simulation()
+        self.last_states = None
 
         self.observation_space = MultiDiscrete([
             len(self.mapping),  # Set of residual imbalance states
@@ -161,6 +160,12 @@ class Env(gym.Env):
         self.absolute_position = [1]
         self.current_trade_indices = [0]
         self.trade_indices = [0]
+        self.current_long_shorts = [0]
+        self.long_shorts = None
+        self.current_short_longs = list()
+        self.short_longs = None
+        self.current_portfolio_values = [0]
+        self.portfolio_values = None
 
         # dict: keys are states, values are lists of actions taken in that state
         self.num_trades = [dict()]
@@ -330,12 +335,16 @@ class Env(gym.Env):
             self.current_state = self.states.iloc[stop, :]
             self.current_trade_indices.extend(range(start, stop))
             self.current_absolute_position.extend([pos]*(stop-start))
+            self.current_portfolio_values.extend([
+                self.portfolio[0] + sum(self.shares * self.states.iloc[idx, 1:]) for idx in range(start, stop)
+            ])
             self.__traded = False
         else:
             self.state_index += 1
             self.current_state = self.states.iloc[self.state_index, :]
             self.current_trade_indices.append(self.state_index)
             self.current_absolute_position.append(pos)
+            self.current_portfolio_values.append(self.portfolio[0] + sum(self.shares * self.current_state[1:]))
 
         self.terminal = self.state_index >= len(self.states) - 1
 
@@ -358,6 +367,7 @@ class Env(gym.Env):
             costs += self.trading_costs(self.shares[1], sds)
             cash -= sh + sds + costs
             self.__traded = True
+            self.current_long_shorts.append(self.state_index)
             self.portfolio = [cash, sh, sds]
             self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
             self.update_num_trades(action)
@@ -369,6 +379,7 @@ class Env(gym.Env):
             costs += self.trading_costs(self.shares[1], sds)
             cash -= sh + sds + costs
             self.__traded = True
+            self.current_short_longs.append(self.state_index)
             self.portfolio = [cash, sh, sds]
             self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
             self.update_num_trades(action)
@@ -415,7 +426,7 @@ class Env(gym.Env):
         return costs
 
     def plot(self, data='portfolio_history'):
-        options = ['portfolio_history', 'position_history']
+        options = ['portfolio_history', 'position_history', 'asset_paths']
         if data == 'help':
             print(options)
             return
@@ -427,24 +438,72 @@ class Env(gym.Env):
             path.mkdir()
 
         if data == 'portfolio_history':
-            array = np.array(self.last_portfolio_history)
-            fig, ax = plt.subplots(figsize=(15, 10))
-            ax.plot(array.sum(axis=1), label='Total', c='g')
-            ax.set_ylabel('Total Value', fontsize=14)
+            fig, axs = plt.subplots(figsize=(15, 10))
+            axs.plot(self.trade_indices, self.portfolio_values, label='Total', c='k', alpha=0.7)
+            axs.set_ylabel('Total Value', fontsize=14)
+
+            portfolio_values = np.array(self.portfolio_values)
+
+            axs.scatter(
+                self.long_shorts,
+                portfolio_values[self.long_shorts],
+                s=120,
+                c='g',
+                marker='^',
+                label='Long/Short'
+            )
+            axs.scatter(
+                self.short_longs,
+                portfolio_values[self.short_longs],
+                s=120,
+                c='r',
+                marker='v',
+                label='Short/Long'
+            )
 
             fig.legend(fontsize=14)
             fig.suptitle('Portfolio Value', fontsize=14)
 
             fig.savefig(path.joinpath('portfolio_history.png'), format='png')
         elif data == 'position_history':
-            fig, ax = plt.subplots(figsize=(15, 10))
-            ax.plot(self.trade_indices, self.absolute_position, 'b-', label='SH')
-            ax.set_ylabel('SH Position', fontsize=14)
+            fig, axs = plt.subplots(figsize=(15, 10))
+            axs.plot(self.trade_indices, self.absolute_position, 'b-', label='SH')
+            axs.set_ylabel('SH Position', fontsize=14)
 
             fig.legend(fontsize=14)
             fig.suptitle('Position', fontsize=14)
 
             fig.savefig(path.joinpath('position_history.png'), format='png')
+        elif data == 'asset_paths':
+            fig, axs = plt.subplots(2, figsize=(15, 10))
+            axs[0].plot(self.trade_indices, self.last_states.iloc[:, 1], c='k', alpha=0.7)
+            axs[0].set_title('Asset 1')
+
+            axs[1].plot(self.trade_indices, self.last_states.iloc[:, 2], c='k', alpha=0.7)
+            axs[1].set_title('Asset 2')
+
+            for idx, ax in enumerate(axs):
+                ax.scatter(
+                    self.long_shorts,
+                    self.last_states.iloc[self.long_shorts, idx+1],
+                    s=120,
+                    c='g',
+                    marker='^',
+                    label='Long/Short'
+                )
+                ax.scatter(
+                    self.short_longs,
+                    self.last_states.iloc[self.short_longs, idx+1],
+                    s=120,
+                    c='r',
+                    marker='v',
+                    label='Short/Long'
+                )
+
+            fig.legend(fontsize=14)
+            fig.suptitle('Asset Paths', fontsize=14)
+
+            fig.savefig(path.joinpath('asset_paths.png'), format='png')
 
     def reset(self):
         self.last_share_history = self.current_share_history
@@ -453,6 +512,15 @@ class Env(gym.Env):
         self.absolute_position = self.current_absolute_position
         self.trade_indices = self.current_trade_indices
 
+        self.long_shorts = self.current_long_shorts
+        self.current_long_shorts = [0]
+        self.short_longs = self.current_short_longs
+        self.current_short_longs = list()
+
+        self.portfolio_values = self.current_portfolio_values
+        self.current_portfolio_values = [0]
+
+        self.last_states = self.states
         self.states = self._simulation()
 
         self.state_index = 0
