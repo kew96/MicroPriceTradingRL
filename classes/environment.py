@@ -92,6 +92,7 @@ class Env(gym.Env):
     # 3 TODO: Replay buffer in environment
     # RERUN
     # 4 TODO: stable_baselines3
+    # 5 TODO: make asset names dynamic or change naming convention
 
     def __init__(
             self,
