@@ -84,16 +84,14 @@ class Env(gym.Env):
 
     """
 
-    # 1 TODO: Plot trade points
+    # 1 TODO: Action space for buying/selling/holding
+    #   1.1 TODO: Hard stop conditions (run out of money)
     # RERUN
-    # 2 TODO: Action space for buying/selling/holding
-    #   2.1 TODO: Hard stop conditions (run out of money)
+    # 2 TODO: Reward function (purchase price - mid-price - baseline)
     # RERUN
-    # 3 TODO: Reward function (purchase price - mid-price - baseline)
+    # 3 TODO: Replay buffer in environment
     # RERUN
-    # 4 TODO: Replay buffer in environment
-    # RERUN
-    # 5 TODO: stable_baselines3
+    # 4 TODO: stable_baselines3
 
     def __init__(
             self,
