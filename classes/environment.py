@@ -84,15 +84,17 @@ class Env(gym.Env):
 
     """
 
-    # 1 TODO: Action space for buying/selling/holding
-    #   1.1 TODO: Hard stop conditions (run out of money)
+    # 1 TODO: Add inventory to state space
+    # 2 TODO: Action space for buying/selling/holding
+    #   2.1 TODO: Hard stop conditions (run out of money)
     # RERUN
-    # 2 TODO: Reward function (purchase price - mid-price - baseline)
+    # 3 TODO: Reward function (purchase price - mid-price - baseline)
+    #   3.1 TODO: -e^(-gamma*x) utility function
     # RERUN
-    # 3 TODO: Replay buffer in environment
+    # 4 TODO: Replay buffer in environment
     # RERUN
-    # 4 TODO: stable_baselines3
-    # 5 TODO: make asset names dynamic or change naming convention
+    # 5 TODO: stable_baselines3
+    # 6 TODO: make asset names dynamic or change naming convention
 
     def __init__(
             self,
