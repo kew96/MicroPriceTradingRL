@@ -221,72 +221,6 @@ class Env(gym.Env):
                 collapsed[k] = current
         return collapsed
 
-    def plot_state_frequency(self):
-        """
-        Function to plot number of observations in each state. Will show distribution of states
-        :return: plot
-        """
-        collapsed = self.collapse_num_trades_dict(2)
-        states = []
-        freq = []
-
-        fig, ax = plt.subplots(figsize=(15, 10))
-
-        for key in sorted(collapsed):
-            states.append(key)
-            freq.append(len(collapsed[key]))
-
-        ax.bar(states, freq)
-        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
-        plt.show()
-
-    def summarize_decisions(self, num_env_to_analyze=1):
-        """
-        This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
-        :param num_env_to_analyze: See function collapse_num_trades
-        :return: plot
-        """
-        collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
-        states = []
-        d = {}  # keys are states, values are (unique, counts)
-
-        fig, ax = plt.subplots(figsize=(15, 10))
-        for key in sorted(collapsed):
-            states.append(key)
-            unique, counts = np.unique(collapsed[key], return_counts=True)
-            d[key] = (unique, counts)
-        freq_dict = {}
-        for i in range(self.action_space.n+3):
-
-            freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in sorted(d.keys())]
-
-        ax.bar(sorted(d.keys()), freq_dict[0], label=self.action_title[0])
-        for i in range(1, self.action_space.n + 2):
-            ax.bar(sorted(d.keys()),
-                   freq_dict[i],
-                   label=self.action_title[i],
-                   bottom=sum([np.array(freq_dict[j]) for j in range(i)])
-                   )
-
-        ax.legend()
-        plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
-        plt.show()
-
-    def summarize_state_decisions(self, state, num_env_to_analyze=1):
-        """
-        This plots the distribution of actions in a given state.
-
-        :param num_env_to_analyze: See function collapse_num_trades
-        :param state: the state of which we plot the actions made
-        :return: plot
-        """
-        collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
-        unique, counts = np.unique(collapsed[state], return_counts=True)
-        plt.figure(figsize=(15, 10))
-        plt.bar([self.action_title[i] for i in unique], counts)
-        plt.xticks([self.action_title[i] for i in unique], fontsize=14)
-        plt.show()
-
     def _simulation(self):
         """
         Creates simulated data for the given number of steps (see self.ite).
@@ -428,8 +362,9 @@ class Env(gym.Env):
 
         return costs
 
-    def plot(self, data='portfolio_history'):
-        options = ['portfolio_history', 'position_history', 'asset_paths']
+    def plot(self, data='portfolio_history', num_env_to_analyze = 1, state = None):
+        options = ['portfolio_history', 'position_history', 'asset_paths',
+                   'summarize_decisions','summarize_state_decisions','state_frequency']
         if data == 'help':
             print(options)
             return
@@ -507,6 +442,74 @@ class Env(gym.Env):
             fig.suptitle('Asset Paths', fontsize=14)
 
             fig.savefig(path.joinpath('asset_paths.png'), format='png')
+        elif data == 'summarize_decisions':
+            """
+            This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
+            :param num_env_to_analyze: See function collapse_num_trades
+            :return: plot
+            """
+            collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
+            states = []
+            d = {}  # keys are states, values are (unique, counts)
+
+            fig, ax = plt.subplots(figsize=(15, 10))
+            for key in sorted(collapsed):
+                states.append(key)
+                unique, counts = np.unique(collapsed[key], return_counts=True)
+                d[key] = (unique, counts)
+            freq_dict = {}
+            for i in range(self.action_space.n + 3):
+                freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in
+                                sorted(d.keys())]
+
+            ax.bar(sorted(d.keys()), freq_dict[0], label=self.action_title[0])
+            for i in range(1, self.action_space.n + 2):
+                ax.bar(sorted(d.keys()),
+                       freq_dict[i],
+                       label=self.action_title[i],
+                       bottom=sum([np.array(freq_dict[j]) for j in range(i)])
+                       )
+
+            ax.legend()
+            plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
+            plt.show()
+
+        elif data == 'summarize_state_decisions':
+            """
+            This plots the distribution of actions in a given state.
+
+            :param num_env_to_analyze: See function collapse_num_trades
+            :param state: the state of which we plot the actions made
+            :return: plot
+            """
+            if state:
+                collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
+                unique, counts = np.unique(collapsed[state], return_counts=True)
+                plt.figure(figsize=(15, 10))
+                plt.bar([self.action_title[i] for i in unique], counts)
+                plt.xticks([self.action_title[i] for i in unique], fontsize=14)
+                plt.show()
+            else:
+                print('Must include state')
+
+        elif data == 'state_frequency':
+            """
+                    Function to plot number of observations in each state. Will show distribution of states
+                    :return: plot
+                    """
+            collapsed = self.collapse_num_trades_dict(2)
+            states = []
+            freq = []
+
+            fig, ax = plt.subplots(figsize=(15, 10))
+
+            for key in sorted(collapsed):
+                states.append(key)
+                freq.append(len(collapsed[key]))
+
+            ax.bar(states, freq)
+            plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
+            plt.show()
 
     def reset(self):
         self.last_share_history = self.current_share_history
