@@ -152,7 +152,7 @@ class Env(gym.Env):
         self.__traded = False
         self.no_trade_period = no_trade_period
 
-        # cash, SH position, SDS position
+        # cash, Asset 1 position, Asset 2 position
         self.portfolio = [-sum(start_allocation), *start_allocation]
         self.current_portfolio_history = [self.portfolio]
 
@@ -405,8 +405,8 @@ class Env(gym.Env):
             fig.savefig(path.joinpath('portfolio_history.png'), format='png')
         elif data == 'position_history':
             fig, axs = plt.subplots(figsize=(15, 10))
-            axs.plot(self.trade_indices, self.absolute_position, 'b-', label='SH')
-            axs.set_ylabel('SH Position', fontsize=14)
+            axs.plot(self.trade_indices, self.absolute_position, 'b-', label='Asset 1')
+            axs.set_ylabel('Asset 1 Position', fontsize=14)
 
             fig.legend(fontsize=14)
             fig.suptitle('Position', fontsize=14)
@@ -533,7 +533,7 @@ class Env(gym.Env):
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
-        # cash, SH position, SDS position
+        # cash, Asset 1 position, Asset 2 position
         self.portfolio = [-sum(self.start_allocation), *self.start_allocation]
         self.current_portfolio_history = [self.portfolio]
 
