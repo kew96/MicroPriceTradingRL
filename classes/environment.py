@@ -364,27 +364,34 @@ class Env(gym.Env):
 
         if action == 0 and self.shares[0] < 0:
             cash = self.liquidate()
-            sh = abs(self.start_allocation[0])
-            sds = -abs(self.start_allocation[1])
-            costs = self.trading_costs(self.shares[0], sh)
-            costs += self.trading_costs(self.shares[1], sds)
-            cash -= sh + sds + costs
+            asset1 = abs(self.start_allocation[0])
+            asset2 = -abs(self.start_allocation[1])
+
+            prev_shares = self.shares.copy()
+            self.shares = [asset1 / self.current_state[1], asset2 / self.current_state[2]]
+
+            costs = self.trading_costs(self.shares[0], asset1, prev_shares[0]-self.shares[0])
+            costs += self.trading_costs(self.shares[1], asset2, prev_shares[1]-self.shares[1])
+            cash -= asset1 + asset2 + costs
             self.__traded = True
             self.current_long_shorts.append(self.state_index)
-            self.portfolio = [cash, sh, sds]
-            self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
+            self.portfolio = [cash, asset1, asset2]
+            self.shares = [asset1 / self.current_state[1], asset2 / self.current_state[2]]
             self.update_num_trades(action)
         elif action == 1 and self.shares[0] > 0:
             cash = self.liquidate()
-            sh = -abs(self.start_allocation[0])
-            sds = abs(self.start_allocation[1])
-            costs = self.trading_costs(self.shares[0], sh)
-            costs += self.trading_costs(self.shares[1], sds)
-            cash -= sh + sds + costs
+            asset1 = -abs(self.start_allocation[0])
+            asset2 = abs(self.start_allocation[1])
+
+            prev_shares = self.shares.copy()
+            self.shares = [asset1 / self.current_state[1], asset2 / self.current_state[2]]
+
+            costs = self.trading_costs(self.shares[0], asset1, prev_shares[0]-self.shares[1])
+            costs += self.trading_costs(self.shares[1], asset2, prev_shares[1]-self.shares[1])
+            cash -= asset1 + asset2 + costs
             self.__traded = True
             self.current_short_longs.append(self.state_index)
-            self.portfolio = [cash, sh, sds]
-            self.shares = [sh / self.current_state[1], sds / self.current_state[2]]
+            self.portfolio = [cash, asset1, asset2]
             self.update_num_trades(action)
         else:
             if action == 0 or action == 1:
@@ -411,17 +418,17 @@ class Env(gym.Env):
 
     def liquidate(self):
         cash = self.portfolio[0]
-        for value in self.portfolio[1:]:
+        for value, s in zip(self.portfolio[1:], self.shares):
             cash += value
-            cash -= self.trading_costs(value, 0)
+            cash -= self.trading_costs(value, 0, s)
         return cash
 
-    def trading_costs(self, current, target):
+    def trading_costs(self, current, target, shares):
         if current - target > 0:  # sell
-            costs = self.fixed_sell_cost
+            costs = self.fixed_sell_cost * abs(shares)
             costs += self.var_sell_cost * (current - target)
         elif current - target < 0:  # buy
-            costs = self.fixed_buy_cost
+            costs = self.fixed_buy_cost * abs(shares)
             costs += self.var_buy_cost * (target - current)
         else:
             costs = 0
