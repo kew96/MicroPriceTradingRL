@@ -184,6 +184,9 @@ class Env(gym.Env):
         self.last_share_history = self.current_share_history
         self.last_portfolio_history = self.current_portfolio_history
 
+        ## TODO can another variable handle this?
+        self.ending_portfolio_values = []
+
     @property
     def share_history(self):
         return self.last_share_history
@@ -371,7 +374,8 @@ class Env(gym.Env):
 
     def plot(self, data='portfolio_history', num_env_to_analyze = 1, state = None):
         options = ['portfolio_history', 'position_history', 'asset_paths',
-                   'summarize_decisions','summarize_state_decisions','state_frequency']
+                   'summarize_decisions','summarize_state_decisions','state_frequency',
+                   'learning_progress']
         if data == 'help':
             print(options)
             return
@@ -518,6 +522,33 @@ class Env(gym.Env):
             plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
             plt.show()
 
+        elif data == 'learning_progress':
+            values = self.ending_portfolio_values
+            # Define the figure
+            f, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+            f.suptitle(" Grand Avg " + str(np.round(np.mean(values), 3)))
+            ax[0].plot(values, label='Value per run')
+            ax[0].axhline(.08, c='red', ls='--', label='goal')
+            ax[0].set_xlabel('Episodes ')
+            ax[0].set_ylabel('Reward')
+            x = range(len(values))
+            ax[0].legend()
+            # Calculate the trend
+            try:
+                z = np.polyfit(x, values, 1)
+                p = np.poly1d(z)
+                ax[0].plot(x, p(x), "--", label='trend')
+            except:
+                print('')
+
+            # Plot the histogram of results
+            ax[1].hist(values[-100:])
+            ax[1].axvline(.08, c='red', label='Value')
+            ax[1].set_xlabel('Scores per Last 100 Episodes')
+            ax[1].set_ylabel('Frequency')
+            ax[1].legend()
+            plt.show()
+
     def reset(self):
         self.last_share_history = self.current_share_history
         self.last_portfolio_history = self.current_portfolio_history
@@ -554,6 +585,10 @@ class Env(gym.Env):
         self.current_absolute_position = [1]
 
         self.num_trades.append(dict())
+
+        ##TODO should i include the reward func here somehow?
+        #self.ending_portfolio_values.append(self.reward_func(self.last_portfolio_history[-1]))
+        self.ending_portfolio_values.append(sum(self.last_portfolio_history[-1]))
 
         return jnp.asarray(self.current_state.values)
 
