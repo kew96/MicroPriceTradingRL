@@ -109,6 +109,9 @@ class Env(Simulation, Broker, gym.Env):
             fixed_buy_cost: float = 0,
             variable_sell_cost: float = 0.0,
             variable_buy_cost: float = 0.0,
+            min_trades: int = 1,
+            lookback: int = 5,
+            no_trade_penalty: Union[float, int] = 100,
             reward_func: Callable = portfolio_value,
             start_allocation: Allocation = None,
             max_position: int = 10,
@@ -149,11 +152,21 @@ class Env(Simulation, Broker, gym.Env):
         self.observation_space = MultiDiscrete([
             len(self.mapping),  # Set of residual imbalance states
             self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
-            self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
+            self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value,
+            self.ite  # Number of trading periods in run
         ])
         self.action_space = Discrete(max_position*2+1)
 
         self._max_episode_steps = 10_000
+
+        ######### MOVE TO PARENT CLASSES ##################
+        self.no_trade_penalty = no_trade_penalty
+        self.trades = [1]
+        self.min_trades = min_trades
+        self.lookback = lookback
+        assert lookback > self.no_trade_period
+
+        #####################################################
 
     def step(self, action):
         old_portfolio = self.portfolio.copy()
@@ -191,6 +204,11 @@ class Env(Simulation, Broker, gym.Env):
                 period_prices=self.states.iloc[start:stop, 1:]
             )
 
+            ######## MOVE ###########
+            self.trades.extend([1]*(stop-start-1))
+
+            #########################
+
             self.position = action
         else:
             self.state_index += 1
@@ -203,13 +221,26 @@ class Env(Simulation, Broker, gym.Env):
                 steps=1
             )
 
+            ####### MOVE ########
+            self.trades.append(0)
+
+            #####################
+
         self.terminal = self.state_index >= len(self.states) - 1
 
         self.portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
 
+        if self.lookback and self.lookback < len(self.trades) and sum(self.trades[-self.lookback:]) < self.min_trades:
+            penalty = self.no_trade_penalty
+        else:
+            penalty = 0
+
+        vals = self.current_state.values
+        vals = np.append(vals, sum(self.trades[-self.lookback:]))
+
         return (
-            jnp.asarray(self.current_state.values),
-            self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state),
+            jnp.asarray(vals),
+            self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state) - penalty,
             self.terminal,
             {}
         )
