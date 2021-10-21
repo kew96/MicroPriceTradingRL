@@ -111,6 +111,7 @@ class Env(Simulation, Broker, gym.Env):
             variable_buy_cost: float = 0.0,
             reward_func: Callable = portfolio_value,
             start_allocation: Allocation = None,
+            max_position: int = 10,
             steps: int = 1000,
     ):
         Simulation.__init__(
@@ -138,6 +139,7 @@ class Env(Simulation, Broker, gym.Env):
             variable_sell_cost=variable_sell_cost,
             spread=spread,
             no_trade_period=no_trade_period,
+            max_position=max_position,
             reverse_mapping=self._reverse_mapping
         )
 
@@ -149,17 +151,17 @@ class Env(Simulation, Broker, gym.Env):
             self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
             self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
         ])
-        self.action_space = Discrete(3)
+        self.action_space = Discrete(max_position*2+1)
 
         self._max_episode_steps = 10_000
 
     def step(self, action):
         old_portfolio = self.portfolio.copy()
 
-        action -= 1
+        action -= self.max_position
 
         if self.position != action:
-            self.__traded = True
+            self._traded = True
             self.portfolio, self.shares = self.trade(
                 action,
                 self._start_allocation,
@@ -171,8 +173,8 @@ class Env(Simulation, Broker, gym.Env):
 
         self.last_state = self.current_state
 
-        if self.__traded:
-            self.__traded = False
+        if self._traded:
+            self._traded = False
 
             start = self.state_index
             self.state_index += 1 + self.no_trade_period
@@ -185,9 +187,11 @@ class Env(Simulation, Broker, gym.Env):
                 position=action,
                 steps=stop-start,
                 trade_index=start,
-                long_short=action > 0,
+                long_short=action > self.position,
                 period_prices=self.states.iloc[start:stop, 1:]
             )
+
+            self.position = action
         else:
             self.state_index += 1
             self.current_state = self.states.iloc[self.state_index, :]
@@ -303,6 +307,7 @@ class Env(Simulation, Broker, gym.Env):
             fig.suptitle('Portfolio Value', fontsize=14)
 
             fig.savefig(path.joinpath('portfolio_history.png'), format='png')
+
         elif data == 'position_history':
             fig, axs = plt.subplots(figsize=(15, 10))
 
@@ -316,6 +321,7 @@ class Env(Simulation, Broker, gym.Env):
             fig.suptitle('Position', fontsize=14)
 
             fig.savefig(path.joinpath('position_history.png'), format='png')
+
         elif data == 'asset_paths':
             fig, axs = plt.subplots(2, figsize=(15, 13))
             axs[0].plot(self, self._last_states.iloc[:, 1], c='k', alpha=0.7)
@@ -346,6 +352,7 @@ class Env(Simulation, Broker, gym.Env):
             fig.suptitle('Asset Paths', fontsize=14)
 
             fig.savefig(path.joinpath('asset_paths.png'), format='png')
+
         elif data == 'summarize_decisions':
             """
             This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
@@ -362,12 +369,11 @@ class Env(Simulation, Broker, gym.Env):
                 unique, counts = np.unique(collapsed[key], return_counts=True)
                 d[key] = (unique, counts)
             freq_dict = {}
-            for i in range(self.action_space.n + 3):
+            for i in range(-self.max_position, self.max_position + 1):
                 freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in
                                 sorted(d.keys())]
 
-            ax.bar(sorted(d.keys()), freq_dict[0], label=self._action_title[0])
-            for i in range(1, self.action_space.n + 2):
+            for i in range(-self.max_position, self.max_position + 1):
                 ax.bar(sorted(d.keys()),
                        freq_dict[i],
                        label=self._action_title[i],

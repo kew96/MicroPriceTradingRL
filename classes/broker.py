@@ -17,12 +17,14 @@ class Broker(EnvHistory):
             variable_sell_cost: float = 0.0,
             spread: Union[float, int] = 0,
             no_trade_period: int = 0,
+            max_position: int = 10,
             reverse_mapping: Optional[dict] = None
     ):
         super().__init__(
             current_state=current_state,
             start_allocation=start_allocation,
-            reverse_mapping=reverse_mapping
+            reverse_mapping=reverse_mapping,
+            max_position=max_position
         )
 
         if start_allocation is None:
@@ -38,7 +40,10 @@ class Broker(EnvHistory):
 
         # No trade period
         self.no_trade_period = no_trade_period
-        self.__traded = False
+        self._traded = False
+
+        # Maximum position
+        self.max_position = max_position
 
     def trade(
             self,
@@ -110,4 +115,4 @@ class Broker(EnvHistory):
             current_state=current_state
         )
 
-        self.__traded = False
+        self._traded = False

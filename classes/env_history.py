@@ -12,7 +12,8 @@ class EnvHistory:
             self,
             current_state: pd.Series,
             start_allocation: Allocation = None,
-            reverse_mapping: Optional[dict] = None
+            reverse_mapping: Optional[dict] = None,
+            max_position: int = 10
     ):
         if start_allocation is None:
             start_allocation = [1000, -500]
@@ -39,21 +40,21 @@ class EnvHistory:
 
         # dict: keys are states, values are lists of actions taken in that state
         self.num_trades = [dict()]
-        self._action_title = {
-            -2: "Long Asset 1 / Short Asset 2",
-            -1: "Short Asset 1 / Long Asset 2",
-            0: "Hold",
-            1: "Tried Long/Short but already Long/Short",
-            2: "Tried Short/Long but already Short/Long"
-        }
-        # self._action_title = dict()
-        # for i in range(-1, 1 + 1):  # TODO: Change to (-max position, max position + 1)
-        #     if i < 0:
-        #         self._action_title[i] = f'Short/Long {abs(i)}'
-        #     elif i > 0:
-        #         self._action_title[i] = f'Long/Short {abs(i)}'
-        #     else:
-        #         self._action_title[i] = 'Flat'
+        # self._action_title = {
+        #     -2: "Long Asset 1 / Short Asset 2",
+        #     -1: "Short Asset 1 / Long Asset 2",
+        #     0: "Hold",
+        #     1: "Tried Long/Short but already Long/Short",
+        #     2: "Tried Short/Long but already Short/Long"
+        # }
+        self._action_title = dict()
+        for i in range(-max_position, max_position + 1):  # TODO: Change to (-max position, max position + 1)
+            if i < 0:
+                self._action_title[i] = f'Short/Long {abs(i)}'
+            elif i > 0:
+                self._action_title[i] = f'Long/Short {abs(i)}'
+            else:
+                self._action_title[i] = 'Flat'
 
         # USED FOR RESET ONLY
         self._start_allocation = start_allocation
@@ -172,6 +173,7 @@ class EnvHistory:
         self.shares = [self._start_allocation[0] / current_state[1], self._start_allocation[1] / current_state[2]]
         self._share_history.append([self.shares])
 
+        self.position = 1
         self._positions_history.append([1])
 
         self._trade_indices_history.append([0])
@@ -179,3 +181,5 @@ class EnvHistory:
         self._long_short_indices_history.append([0])
 
         self._short_long_indices_history.append([])
+
+        self.num_trades.append(dict())
