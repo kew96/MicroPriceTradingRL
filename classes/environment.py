@@ -1,7 +1,7 @@
 from pathlib import Path
 from copy import deepcopy
 from collections import Callable
-from typing import List, Union, Optional
+from typing import Union, Optional
 
 import gym
 from gym.spaces import Discrete, MultiDiscrete
@@ -13,12 +13,15 @@ import matplotlib.pyplot as plt
 
 from .preprocess import Data
 
+from .broker import Broker, Allocation
+from .simulation import Simulation
+
 
 def portfolio_value(current_portfolio, last_portfolio, action, last_state, current_state):
     return sum(current_portfolio)
 
 
-class Env(gym.Env):
+class Env(Simulation, Broker, gym.Env):
     """
     :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
     :parameter prob: transition matrix between states. optional if using class data
@@ -34,7 +37,7 @@ class Env(gym.Env):
                      Note: each row in attribute data is a 10 second step
 
     Attributes:
-        :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
+        :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class Data)
         :parameter prob: transition matrix between states. optional if using class data
         :parameter fixed_sell_cost: trading cost associated with selling
         :parameter fixed_buy_cost: trading cost associated with buying
@@ -101,310 +104,195 @@ class Env(gym.Env):
             data: Union[pd.DataFrame, Data],
             prob: Optional[pd.DataFrame] = None,
             no_trade_period: int = 0,
+            spread: int = 0,
             fixed_sell_cost: float = 0,
             fixed_buy_cost: float = 0,
-            var_sell_cost: float = 0.0,
-            var_buy_cost: float = 0.0,
+            variable_sell_cost: float = 0.0,
+            variable_buy_cost: float = 0.0,
             reward_func: Callable = portfolio_value,
-            start_allocation: List[int] = [1000, -500],
+            start_allocation: Allocation = None,
             steps: int = 1000,
     ):
-        if isinstance(data, pd.DataFrame) and isinstance(prob, pd.DataFrame):
-            self.df = data
-            self.prob = prob
-        elif isinstance(data, Data) and not prob:
-            self.df = data.data
-            self.prob = data.transition_matrix
-        else:
-            raise TypeError(
-                '"data" and "prob" must both be DataFrames or "data" must be of type Data and "prob" must be None'
-            )
-        self.reward_func = reward_func
-        self.ite = steps or len(data) // 2 - 1
+        Simulation.__init__(
+            self,
+            data=data,
+            prob=prob,
+            steps=steps
+        )
 
-        self.mapping = self.get_mapping()
-        self.__reverse_mapping = {v: k for k, v in self.mapping.items()}
-        self.states = self._simulation()
-        self.last_states = None
-
-        self.observation_space = MultiDiscrete([
-            len(self.mapping),  # Set of residual imbalance states
-            self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
-            self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
-
-        ])
-        self.action_space = Discrete(3)
-
-        self._max_episode_steps = 10_000
+        if start_allocation is None:
+            start_allocation = [1000, -500]
 
         self.state_index = 0
         self.last_state = None
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
-        # Trading costs and initial shares
-        self.start_allocation = start_allocation
-        self.fixed_sell_cost = fixed_sell_cost
-        self.fixed_buy_cost = fixed_buy_cost
-        self.var_sell_cost = var_sell_cost
-        self.var_buy_cost = var_buy_cost
+        Broker.__init__(
+            self,
+            current_state=self.current_state,
+            start_allocation=start_allocation,
+            fixed_buy_cost=fixed_buy_cost,
+            fixed_sell_cost=fixed_sell_cost,
+            variable_buy_cost=variable_buy_cost,
+            variable_sell_cost=variable_sell_cost,
+            spread=spread,
+            no_trade_period=no_trade_period,
+            reverse_mapping=self._reverse_mapping
+        )
 
-        self.__traded = False
-        self.no_trade_period = no_trade_period
+        # RL/OpenAI Gym requirements
+        self.reward_func = reward_func
 
-        # cash, Asset 1 position, Asset 2 position
-        self.portfolio = [-sum(start_allocation), *start_allocation]
-        self.current_portfolio_history = [self.portfolio]
+        self.observation_space = MultiDiscrete([
+            len(self.mapping),  # Set of residual imbalance states
+            self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
+            self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
+        ])
+        self.action_space = Discrete(3)
 
-        self.shares = [start_allocation[0]/self.current_state[1], start_allocation[1]/self.current_state[2]]
-        self.current_share_history = [self.shares]
-
-        self.current_absolute_position = [1]
-        self.absolute_position = [1]
-        self.current_trade_indices = [0]
-        self.trade_indices = [0]
-        self.current_long_shorts = [0]
-        self.long_shorts = None
-        self.current_short_longs = list()
-        self.short_longs = None
-        self.current_portfolio_values = [0]
-        self.portfolio_values = None
-
-        # dict: keys are states, values are lists of actions taken in that state
-        self.num_trades = [dict()]
-        self.action_title = {
-            0: "Long Asset 1 / Short Asset 2",
-            1: "Short Asset 1 / Long Asset 2",
-            2: "Hold",
-            3: "Tried Long/Short but already Long/Short",
-            4: "Tried Short/Long but already Short/Long"
-        }
-
-        # Need a history for plotting
-        self.last_share_history = self.current_share_history
-        self.last_portfolio_history = self.current_portfolio_history
-
-        ## TODO can another variable handle this?
-        self.ending_portfolio_values = []
-
-    @property
-    def share_history(self):
-        return self.last_share_history
-
-    @property
-    def portfolio_history(self):
-        return self.last_portfolio_history
-
-    @staticmethod
-    def get_mapping():
-        '''
-
-        :return: creates a mapping from integers to the states (e.g. '401')
-        '''
-        rows = []
-        for price_relation_d in range(6):
-            for s1_imb_d in range(3):
-                for s2_imb_d in range(3):
-                    s1_imb_d, s2_imb_d, price_relation_d = str(s1_imb_d), str(s2_imb_d), str(price_relation_d)
-                    rows.append(price_relation_d + s1_imb_d + s2_imb_d)
-
-        return dict(zip(rows, range(len(rows))))
-
-    def collapse_num_trades_dict(self, num_env_to_analyze=1):
-        """
-        This combines the last num_env_to_analyze dictionaries in self.num_trades into one dictionary
-        Every time env.reset() gets called, a new entry in self.num_trades is appended
-        :param num_env_to_analyze: integer representing number of dictionaries in self.num_trades to be combined
-        :return:
-        """
-        collapsed = self.num_trades[-num_env_to_analyze]
-        for i in range(len(self.num_trades) - num_env_to_analyze + 1, len(self.num_trades)):
-            for k, v in self.num_trades[i].items():
-                current = collapsed.get(k, []) + v
-                collapsed[k] = current
-        return collapsed
-
-    def _simulation(self):
-        """
-        Creates simulated data for the given number of steps (see self.ite).
-        Utilizes the self.prob as transition matrix
-        :return:
-        """
-
-        simu = [[str(self.df.current_state.iloc[0]), self.df.mid1.iloc[0], self.df.mid2.iloc[0]]]
-        tick = 0.01
-        current = simu[0]
-
-        for i in range(self.ite):
-            state_in = current[0]
-            total_prob = self.prob.loc[state_in, :].sum()
-            random_n = np.random.uniform(0, total_prob)
-            state_out = self.prob.loc[state_in][self.prob.loc[state_in].cumsum() > random_n].index[0]
-            price_move = state_out[3:]
-            state_out = state_out[:3]
-            if price_move == '00':
-                current = [state_out, current[1], current[2]]
-            elif price_move == '10':
-                current = [state_out, current[1] + tick, current[2]]
-            elif price_move == '-10':
-                current = [state_out, current[1] - tick, current[2]]
-            elif price_move == '01':
-                current = [state_out, current[1], current[2] + tick]
-            elif price_move == '0-1':
-                current = [state_out, current[1], current[2] - tick]
-            else:
-                raise ValueError("Wrong price movement")
-            simu.append(current)
-
-        simu = pd.DataFrame(simu, columns=['res_imb_states', 'price_1', 'price_2'])
-        simu.res_imb_states = simu.res_imb_states.replace(self.mapping)
-        return simu
+        self._max_episode_steps = 10_000
 
     def step(self, action):
-        last_portfolio = self.portfolio.copy()
+        old_portfolio = self.portfolio.copy()
 
-        self.portfolio = self.trade(action)
+        action -= 1
+
+        if self.position != action:
+            self.__traded = True
+            self.portfolio, self.shares = self.trade(
+                action,
+                self._start_allocation,
+                old_portfolio,
+                self.current_state
+            )
+
+            self._update_num_trades(action, self.current_state)
 
         self.last_state = self.current_state
 
-
-        pos = np.sign(self.shares[0])
         if self.__traded:
+            self.__traded = False
+
             start = self.state_index
             self.state_index += 1 + self.no_trade_period
             stop = min(self.state_index, len(self.states)-1)
             self.current_state = self.states.iloc[stop, :]
-            self.current_trade_indices.extend(range(start, stop))
-            self.current_absolute_position.extend([pos]*(stop-start))
-            self.current_portfolio_values.extend([
-                self.portfolio[0] + sum(self.shares * self.states.iloc[idx, 1:]) for idx in range(start, stop)
-            ])
-            self.__traded = False
+
+            self._update_histories(
+                portfolio=self.portfolio,
+                shares=self.shares,
+                position=action,
+                steps=stop-start,
+                trade_index=start,
+                long_short=action > 0,
+                period_prices=self.states.iloc[start:stop, 1:]
+            )
         else:
             self.state_index += 1
             self.current_state = self.states.iloc[self.state_index, :]
-            self.current_trade_indices.append(self.state_index)
-            self.current_absolute_position.append(pos)
-            self.current_portfolio_values.append(self.portfolio[0] + sum(self.shares * self.current_state[1:]))
+
+            self._update_histories(
+                portfolio=self.portfolio,
+                shares=self.shares,
+                position=action,
+                steps=1
+            )
 
         self.terminal = self.state_index >= len(self.states) - 1
 
-        self.portfolio = self.update_portfolio()
+        self.portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
 
         return (
             jnp.asarray(self.current_state.values),
-            self.reward_func(self.portfolio, last_portfolio, action, self.last_state, self.current_state),
+            self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state),
             self.terminal,
             {}
         )
 
-    def trade(self, action):
+    def reset(self):
+        super()._reset_simulation()
 
-        if action == 0 and self.shares[0] < 0:
-            cash = self.liquidate()
-            asset1 = abs(self.start_allocation[0])
-            asset2 = -abs(self.start_allocation[1])
+        self.state_index = 0
+        self.current_state = self.states.iloc[self.state_index, :]
+        self.terminal = False
 
-            prev_shares = self.shares.copy()
-            self.shares = [asset1 / self.current_state[1], asset2 / self.current_state[2]]
+        super()._reset_broker(current_state=self.current_state)
 
-            costs = self.trading_costs(self.shares[0], asset1, prev_shares[0]-self.shares[0])
-            costs += self.trading_costs(self.shares[1], asset2, prev_shares[1]-self.shares[1])
-            cash -= asset1 + asset2 + costs
-            self.__traded = True
-            self.current_long_shorts.append(self.state_index)
-            self.portfolio = [cash, asset1, asset2]
-            self.shares = [asset1 / self.current_state[1], asset2 / self.current_state[2]]
-            self.update_num_trades(action)
-        elif action == 1 and self.shares[0] > 0:
-            cash = self.liquidate()
-            asset1 = -abs(self.start_allocation[0])
-            asset2 = abs(self.start_allocation[1])
+        self.num_trades.append(dict())
 
-            prev_shares = self.shares.copy()
-            self.shares = [asset1 / self.current_state[1], asset2 / self.current_state[2]]
+        # TODO should i include the reward func here somehow?
 
-            costs = self.trading_costs(self.shares[0], asset1, prev_shares[0]-self.shares[1])
-            costs += self.trading_costs(self.shares[1], asset2, prev_shares[1]-self.shares[1])
-            cash -= asset1 + asset2 + costs
-            self.__traded = True
-            self.current_short_longs.append(self.state_index)
-            self.portfolio = [cash, asset1, asset2]
-            self.update_num_trades(action)
+        return jnp.asarray(self.current_state.values)
+
+    def render(self, mode="human"):
+        return None
+
+    @staticmethod
+    def __valid_entry(entry):
+        if len(entry) < 2:
+            return False
         else:
-            if action == 0 or action == 1:
-                self.update_num_trades(action+3)
+            return True
+
+    def __get_valid_entry(self, entries, start, stop=0):
+        if not stop:
+            if self.__valid_entry(entries[-start]):
+                return [entries]
             else:
-                self.update_num_trades(2)
+                return self.__get_valid_entry(self, entries, start + 1, stop)
+        else:
+            good_entries = [
+                entry for entry in entries[start:stop] if self.__valid_entry(entry)
+            ]
+            return good_entries
 
-        self.current_share_history.append(self.shares)
-        self.current_portfolio_history.append(self.portfolio)
-        return self.portfolio
-
-    def update_num_trades(self, action):
-        reverse_mapped_state = self.__reverse_mapping[self.current_state[0]]
-        num_trades_last = \
-            self.num_trades[-1].get(reverse_mapped_state, []) + [action]
-        self.num_trades[-1][reverse_mapped_state] = num_trades_last
-
-    def update_portfolio(self):
-        return [
-            self.portfolio[0],
-            self.shares[0]*self.current_state[1],
-            self.shares[1]*self.current_state[2]
+    def plot(
+            self,
+            data='portfolio_history',
+            num_env_to_analyze=1,
+            state=None
+    ):
+        options = [
+            'portfolio_history',
+            'position_history',
+            'asset_paths',
+            'summarize_decisions',
+            'summarize_state_decisions',
+            'state_frequency',
+            'learning_progress'
         ]
 
-    def liquidate(self):
-        cash = self.portfolio[0]
-        for value, s in zip(self.portfolio[1:], self.shares):
-            cash += value
-            cash -= self.trading_costs(value, 0, s)
-        return cash
-
-    def trading_costs(self, current, target, shares):
-        if current - target > 0:  # sell
-            costs = self.fixed_sell_cost * abs(shares)
-            costs += self.var_sell_cost * (current - target)
-        elif current - target < 0:  # buy
-            costs = self.fixed_buy_cost * abs(shares)
-            costs += self.var_buy_cost * (target - current)
-        else:
-            costs = 0
-
-        return costs
-
-    def plot(self, data='portfolio_history', num_env_to_analyze = 1, state = None):
-        options = ['portfolio_history', 'position_history', 'asset_paths',
-                   'summarize_decisions','summarize_state_decisions','state_frequency',
-                   'learning_progress']
         if data == 'help':
             print(options)
             return
         elif data not in options:
             raise LookupError(f'{data} is not an option. Type "help" for more info.')
 
-        path = Path(__file__).parent.parent.parent.joinpath('figures')
+        path = Path(__file__).parent.parent.joinpath('figures')
         if not path.exists():
             path.mkdir()
 
         if data == 'portfolio_history':
             fig, axs = plt.subplots(figsize=(15, 10))
-            axs.plot(self.trade_indices, self.portfolio_values, label='Total', c='k', alpha=0.7)
+
+            axs.plot(range(len(self._portfolio_values_history[-2])), self._portfolio_values_history[-2], label='Total',
+                     c='k', alpha=0.7)
             axs.set_ylabel('Total Value', fontsize=14)
 
-            portfolio_values = np.array(self.portfolio_values)
+            portfolio_values = np.array(self._portfolio_values_history[-2])
 
             axs.scatter(
-                self.long_shorts,
-                portfolio_values[self.long_shorts],
+                self._long_short_indices_history[-2],
+                portfolio_values[self._long_short_indices_history[-2]],
                 s=120,
                 c='g',
                 marker='^',
                 label='Long/Short'
             )
             axs.scatter(
-                self.short_longs,
-                portfolio_values[self.short_longs],
+                self._short_long_indices_history[-2],
+                portfolio_values[self._short_long_indices_history[-2]],
                 s=120,
                 c='r',
                 marker='v',
@@ -417,7 +305,7 @@ class Env(gym.Env):
             fig.savefig(path.joinpath('portfolio_history.png'), format='png')
         elif data == 'position_history':
             fig, axs = plt.subplots(figsize=(15, 10))
-            axs.plot(self.trade_indices, self.absolute_position, 'b-', label='Asset 1')
+            axs.plot(self._trade_indices_history[-2], self._positions_history[-2], 'b-', label='Asset 1')
             axs.set_ylabel('Asset 1 Position', fontsize=14)
 
             fig.legend(fontsize=14)
@@ -426,24 +314,24 @@ class Env(gym.Env):
             fig.savefig(path.joinpath('position_history.png'), format='png')
         elif data == 'asset_paths':
             fig, axs = plt.subplots(2, figsize=(15, 13))
-            axs[0].plot(self.trade_indices, self.last_states.iloc[:, 1], c='k', alpha=0.7)
+            axs[0].plot(self, self._last_states.iloc[:, 1], c='k', alpha=0.7)
             axs[0].set_title('Asset 1')
 
-            axs[1].plot(self.trade_indices, self.last_states.iloc[:, 2], c='k', alpha=0.7)
+            axs[1].plot(self._trade_indices_history[-2], self._last_states.iloc[:, 2], c='k', alpha=0.7)
             axs[1].set_title('Asset 2')
 
             for idx, ax in enumerate(axs):
                 ax.scatter(
-                    self.long_shorts,
-                    self.last_states.iloc[self.long_shorts, idx+1],
+                    self._long_short_indices_history[-2],
+                    self._last_states.iloc[self._long_short_indices_history[-2], idx + 1],
                     s=120,
                     c='g',
                     marker='^',
                     label='Long/Short'
                 )
                 ax.scatter(
-                    self.short_longs,
-                    self.last_states.iloc[self.short_longs, idx+1],
+                    self._short_long_indices_history[-2],
+                    self._last_states.iloc[self._short_long_indices_history[-2], idx + 1],
                     s=120,
                     c='r',
                     marker='v',
@@ -460,7 +348,7 @@ class Env(gym.Env):
             :param num_env_to_analyze: See function collapse_num_trades
             :return: plot
             """
-            collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
+            collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
             states = []
             d = {}  # keys are states, values are (unique, counts)
 
@@ -474,11 +362,11 @@ class Env(gym.Env):
                 freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in
                                 sorted(d.keys())]
 
-            ax.bar(sorted(d.keys()), freq_dict[0], label=self.action_title[0])
+            ax.bar(sorted(d.keys()), freq_dict[0], label=self._action_title[0])
             for i in range(1, self.action_space.n + 2):
                 ax.bar(sorted(d.keys()),
                        freq_dict[i],
-                       label=self.action_title[i],
+                       label=self._action_title[i],
                        bottom=sum([np.array(freq_dict[j]) for j in range(i)])
                        )
 
@@ -495,11 +383,11 @@ class Env(gym.Env):
             :return: plot
             """
             if state:
-                collapsed = self.collapse_num_trades_dict(num_env_to_analyze)
+                collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
                 unique, counts = np.unique(collapsed[state], return_counts=True)
                 plt.figure(figsize=(15, 10))
-                plt.bar([self.action_title[i] for i in unique], counts)
-                plt.xticks([self.action_title[i] for i in unique], fontsize=14)
+                plt.bar([self._action_title[i] for i in unique], counts)
+                plt.xticks([self._action_title[i] for i in unique], fontsize=14)
                 plt.show()
             else:
                 print('Must include state')
@@ -509,7 +397,7 @@ class Env(gym.Env):
                     Function to plot number of observations in each state. Will show distribution of states
                     :return: plot
                     """
-            collapsed = self.collapse_num_trades_dict(2)
+            collapsed = self._collapse_num_trades_dict(2)
             states = []
             freq = []
 
@@ -524,7 +412,7 @@ class Env(gym.Env):
             plt.show()
 
         elif data == 'learning_progress':
-            values = self.ending_portfolio_values
+            values = self.portfolio_values_history[-1, :]
             # Define the figure
             f, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
             f.suptitle(" Grand Avg " + str(np.round(np.mean(values), 3)))
@@ -550,49 +438,6 @@ class Env(gym.Env):
             ax[1].legend()
             plt.show()
 
-    def reset(self):
-        self.last_share_history = self.current_share_history
-        self.last_portfolio_history = self.current_portfolio_history
-
-        self.absolute_position = self.current_absolute_position
-        self.trade_indices = self.current_trade_indices
-
-        self.long_shorts = self.current_long_shorts
-        self.current_long_shorts = [0]
-        self.short_longs = self.current_short_longs
-        self.current_short_longs = list()
-
-        self.portfolio_values = self.current_portfolio_values
-        self.current_portfolio_values = [0]
-
-        self.last_states = self.states
-        self.states = self._simulation()
-
-        self.state_index = 0
-        self.current_state = self.states.iloc[self.state_index, :]
-        self.terminal = False
-
-        # cash, Asset 1 position, Asset 2 position
-        self.portfolio = [-sum(self.start_allocation), *self.start_allocation]
-        self.current_portfolio_history = [self.portfolio]
-
-        self.shares = [
-            self.start_allocation[0] / self.current_state[1],
-            self.start_allocation[1] / self.current_state[2]
-        ]
-        self.current_share_history = [self.shares]
-
-        self.current_trade_indices = [0]
-        self.current_absolute_position = [1]
-
-        self.num_trades.append(dict())
-
-        ##TODO should i include the reward func here somehow?
-        #self.ending_portfolio_values.append(self.reward_func(self.last_portfolio_history[-1]))
-        self.ending_portfolio_values.append(sum(self.last_portfolio_history[-1]))
-
-        return jnp.asarray(self.current_state.values)
-
     def __copy__(self):
         cls = self.__class__
         result = cls.__new__(cls)
@@ -611,6 +456,3 @@ class Env(gym.Env):
         new_env = self.__deepcopy__(dict())
         new_env.reset()
         return new_env
-
-    def render(self, mode="human"):
-        return None
