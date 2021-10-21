@@ -305,7 +305,11 @@ class Env(Simulation, Broker, gym.Env):
             fig.savefig(path.joinpath('portfolio_history.png'), format='png')
         elif data == 'position_history':
             fig, axs = plt.subplots(figsize=(15, 10))
-            axs.plot(self._trade_indices_history[-2], self._positions_history[-2], 'b-', label='Asset 1')
+
+            idxs = self._trade_indices_history[-2]
+            positions = np.array(self._positions_history[-2])
+
+            axs.plot(idxs, positions[idxs], 'b-', label='Asset 1')
             axs.set_ylabel('Asset 1 Position', fontsize=14)
 
             fig.legend(fontsize=14)
@@ -412,7 +416,7 @@ class Env(Simulation, Broker, gym.Env):
             plt.show()
 
         elif data == 'learning_progress':
-            values = self.portfolio_values_history[-1, :]
+            values = [entry[-1] for entry in self.portfolio_values_history]
             # Define the figure
             f, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
             f.suptitle(" Grand Avg " + str(np.round(np.mean(values), 3)))

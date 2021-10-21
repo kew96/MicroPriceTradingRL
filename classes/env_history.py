@@ -1,11 +1,7 @@
-from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-
-from .simulation import Simulation
 
 Allocation = Optional[List[Union[float, int]]]
 
@@ -43,21 +39,21 @@ class EnvHistory:
 
         # dict: keys are states, values are lists of actions taken in that state
         self.num_trades = [dict()]
-        self.__action_title = {
-            0: "Long Asset 1 / Short Asset 2",
-            1: "Short Asset 1 / Long Asset 2",
-            2: "Hold",
-            3: "Tried Long/Short but already Long/Short",
-            4: "Tried Short/Long but already Short/Long"
+        self._action_title = {
+            -2: "Long Asset 1 / Short Asset 2",
+            -1: "Short Asset 1 / Long Asset 2",
+            0: "Hold",
+            1: "Tried Long/Short but already Long/Short",
+            2: "Tried Short/Long but already Short/Long"
         }
-        self._action_title = dict()
-        for i in range(-1, 1 + 1):  # TODO: Change to (-max position, max position + 1)
-            if i < 0:
-                self.action_title[i] = f'Short/Long {abs(i)}'
-            elif i > 0:
-                self.action_title[i] = f'Long/Short {abs(i)}'
-            else:
-                self.action_title[i] = 'Flat'
+        # self._action_title = dict()
+        # for i in range(-1, 1 + 1):  # TODO: Change to (-max position, max position + 1)
+        #     if i < 0:
+        #         self._action_title[i] = f'Short/Long {abs(i)}'
+        #     elif i > 0:
+        #         self._action_title[i] = f'Long/Short {abs(i)}'
+        #     else:
+        #         self._action_title[i] = 'Flat'
 
         # USED FOR RESET ONLY
         self._start_allocation = start_allocation
@@ -170,7 +166,7 @@ class EnvHistory:
         self.portfolio = [-sum(self._start_allocation), *self._start_allocation]
         self._portfolio_history.append([self.portfolio])
 
-        self.portfolio_value = [sum(self.portfolio)]
+        self.portfolio_value = sum(self.portfolio)
         self._portfolio_values_history.append([self.portfolio_value])
 
         self.shares = [self._start_allocation[0] / current_state[1], self._start_allocation[1] / current_state[2]]
