@@ -112,6 +112,8 @@ class Env(Simulation, Broker, gym.Env):
             min_trades: int = 1,
             lookback: int = 5,
             no_trade_penalty: Union[float, int] = 100,
+            threshold: int = -100,
+            hard_stop_penalty: int = 1000,
             reward_func: Callable = portfolio_value,
             start_allocation: Allocation = None,
             max_position: int = 10,
@@ -153,7 +155,8 @@ class Env(Simulation, Broker, gym.Env):
             len(self.mapping),  # Set of residual imbalance states
             self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
             self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value,
-            self.ite  # Number of trading periods in run
+            self.ite,  # Number of trading periods in run,
+            self.max_position*2+1  # Current position
         ])
         self.action_space = Discrete(max_position*2+1)
 
@@ -165,6 +168,9 @@ class Env(Simulation, Broker, gym.Env):
         self.min_trades = min_trades
         self.lookback = lookback
         assert lookback > self.no_trade_period
+
+        self.threshold = threshold
+        self.hard_stop_penalty = hard_stop_penalty
 
         #####################################################
 
@@ -235,15 +241,28 @@ class Env(Simulation, Broker, gym.Env):
         else:
             penalty = 0
 
-        vals = self.current_state.values
-        vals = np.append(vals, sum(self.trades[-self.lookback:]))
+        next_state = self.current_state.values
+        next_state = np.append(next_state, sum(self.trades[-self.lookback:]))
+        next_state = np.append(next_state, self.position)
 
-        return (
-            jnp.asarray(vals),
-            self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state) - penalty,
-            self.terminal,
-            {}
-        )
+        self.terminal = self.state_index >= len(self.states) - 1
+
+        if sum(self.portfolio) <= self.threshold:
+            self.terminal = True
+
+            return (
+                jnp.asarray(next_state),
+                -self.hard_stop_penalty,
+                self.terminal,
+                {}
+            )
+        else:
+            return (
+                jnp.asarray(next_state),
+                self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state) - penalty,
+                self.terminal,
+                {}
+            )
 
     def reset(self):
         super()._reset_simulation()
