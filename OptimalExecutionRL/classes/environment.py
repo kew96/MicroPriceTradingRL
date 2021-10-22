@@ -27,14 +27,14 @@ class Env(Simulation, EnvHistory, Broker, gym.Env):
             steps: int = 2340,  # Simulate one day, 23,400 seconds in a trading day broken into 10 second intervals
             fixed_buy_cost: float = 0.0,
             fixed_sell_cost: float = 0.0,
-            reward_func: Callable = lambda x: x, # TODO
+            variable_buy_cost: float = 0.0,
+            variable_sell_cost: float = 0.0,
+            spread: float = 0.0,
+            reward_func: Callable = lambda x: x,  # TODO
             buy_algo: bool = True,
-            starting_position: int = 0, # Note: quantity is in dollars
+            starting_position: int = 0,  # Note: quantity is in dollars
             distance_to_end: float = 0,
-            must_trade_interval: int = 5, # TODO idk about this (what Sasha said)
-
-
-
+            must_trade_interval: int = 5,  # TODO idk about this (what Sasha said)
     ):
         Simulation.__init__(
             data=data,
