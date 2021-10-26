@@ -324,11 +324,12 @@ class Env(gym.Env):
         return simu
 
     def step(self, action):
+
+        last_portfolio = self.portfolio.copy()
+
         self.portfolio = self.trade(action)
 
         self.last_state = self.current_state
-
-        last_portfolio = self.portfolio.copy()
 
         pos = np.sign(self.shares[0])
         if self.__traded:
