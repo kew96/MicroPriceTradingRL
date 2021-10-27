@@ -119,6 +119,7 @@ class Env(gym.Env):
             raise TypeError(
                 '"data" and "prob" must both be DataFrames or "data" must be of type Data and "prob" must be None'
             )
+
         self.reward_func = reward_func
         self.ite = steps or len(data) // 2 - 1
 
@@ -199,7 +200,7 @@ class Env(gym.Env):
         :return: creates a mapping from integers to the states (e.g. '401')
         '''
         rows = []
-        for price_relation_d in range(6):
+        for price_relation_d in range(7):
             for s1_imb_d in range(3):
                 for s2_imb_d in range(3):
                     s1_imb_d, s2_imb_d, price_relation_d = str(s1_imb_d), str(s2_imb_d), str(price_relation_d)
