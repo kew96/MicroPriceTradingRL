@@ -238,11 +238,11 @@ class Preprocess:
         self.__data['dM2'] = 1 * (self.__data.mid2_diff > 0)
         self.__data.dM2 -= 1 * (self.__data.mid2_diff < 0)
 
-        self.__data['residual_bucket'], bins_res = pd.cut(self.__data['residuals'], 6, labels=False, retbins=True)
+        self.__data['residual_bucket'], bins_res = pd.cut(self.__data['residuals'], self.__residual_num, labels=False, retbins=True)
         self.__data['residual_bucket_later'] = pd.cut(self.__data['residual_later'], bins_res, labels=False)
 
-        self.__data['imb1_bucket'], bins_imb1 = pd.cut(self.__data.imb1, 3, labels=False, retbins=True)
-        self.__data['imb2_bucket'], bins_imb2 = pd.cut(self.__data.imb2, 3, labels=False, retbins=True)
+        self.__data['imb1_bucket'], bins_imb1 = pd.cut(self.__data.imb1, self.__imb1_num, labels=False, retbins=True)
+        self.__data['imb2_bucket'], bins_imb2 = pd.cut(self.__data.imb2, self.__imb2_num, labels=False, retbins=True)
         self.__data['imb1_bucket_later'] = pd.cut(self.__data['imb1_later'], bins_imb1, labels=False)
         self.__data['imb2_bucket_later'] = pd.cut(self.__data['imb2_later'], bins_imb2, labels=False)
         self.__data['current_state'] = (
