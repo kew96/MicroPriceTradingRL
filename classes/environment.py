@@ -221,7 +221,7 @@ class Env(gym.Env):
                 collapsed[k] = current
         return collapsed
 
-    def plot_state_frequency(self):
+    def plot_state_frequency(self, fig_name):
         """
         Function to plot number of observations in each state. Will show distribution of states
         :return: plot
@@ -240,7 +240,11 @@ class Env(gym.Env):
         plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
         plt.show()
 
-    def summarize_decisions(self, num_env_to_analyze=1):
+        if fig_name:
+            path = Path(__file__).parent.parent.parent.joinpath('figures')
+            plt.savefig(path.joinpath(f'{fig_name}.png'), format='png')
+
+    def summarize_decisions(self, num_env_to_analyze=1, fig_name=None):
         """
         This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
         :param num_env_to_analyze: See function collapse_num_trades
@@ -272,7 +276,11 @@ class Env(gym.Env):
         plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
         plt.show()
 
-    def summarize_state_decisions(self, state, num_env_to_analyze=1):
+        if fig_name:
+            path = Path(__file__).parent.parent.parent.joinpath('figures')
+            plt.savefig(path.joinpath(f'{fig_name}.png'), format='png')
+
+    def summarize_state_decisions(self, state, num_env_to_analyze=1, fig_name=None):
         """
         This plots the distribution of actions in a given state.
 
@@ -286,6 +294,10 @@ class Env(gym.Env):
         plt.bar([self.action_title[i] for i in unique], counts)
         plt.xticks([self.action_title[i] for i in unique], fontsize=14)
         plt.show()
+
+        if fig_name:
+            path = Path(__file__).parent.parent.parent.joinpath('figures')
+            plt.savefig(path.joinpath(f'{fig_name}.png'), format='png')
 
     def _simulation(self):
         """
@@ -439,7 +451,7 @@ class Env(gym.Env):
 
         return costs
 
-    def plot(self, data='portfolio_history'):
+    def plot(self, data='portfolio_history', fig_name=None):
         options = ['portfolio_history', 'position_history', 'asset_paths']
         if data == 'help':
             print(options)
@@ -478,7 +490,8 @@ class Env(gym.Env):
             fig.legend(fontsize=14)
             fig.suptitle('Portfolio Value', fontsize=14)
 
-            fig.savefig(path.joinpath('portfolio_history.png'), format='png')
+            if fig_name:
+                fig.savefig(path.joinpath(f'{fig_name}.png'), format='png')
         elif data == 'position_history':
             fig, axs = plt.subplots(figsize=(15, 10))
             axs.plot(self.trade_indices, self.absolute_position, 'b-', label='SH')
@@ -487,7 +500,8 @@ class Env(gym.Env):
             fig.legend(fontsize=14)
             fig.suptitle('Position', fontsize=14)
 
-            fig.savefig(path.joinpath('position_history.png'), format='png')
+            if fig_name:
+                fig.savefig(path.joinpath(f'{fig_name}.png'), format='png')
         elif data == 'asset_paths':
             fig, axs = plt.subplots(2, figsize=(15, 13))
             axs[0].plot(self.trade_indices, self.last_states.iloc[:, 1], c='k', alpha=0.7)
@@ -517,7 +531,8 @@ class Env(gym.Env):
             axs[0].legend(fontsize=14)
             fig.suptitle('Asset Paths', fontsize=14)
 
-            fig.savefig(path.joinpath('asset_paths.png'), format='png')
+            if fig_name:
+                fig.savefig(path.joinpath(f'{fig_name}.png'), format='png')
 
     def reset(self):
         self.last_share_history = self.current_share_history
