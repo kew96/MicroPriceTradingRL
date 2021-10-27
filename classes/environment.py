@@ -240,11 +240,12 @@ class Env(gym.Env):
 
         ax.bar(states, freq)
         plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
-        plt.show()
 
         if fig_name:
-            path = Path(__file__).parent.parent.parent.joinpath('figures')
+            path = Path(__file__).parent.parent.joinpath('figures')
             plt.savefig(path.joinpath(f'{fig_name}.png'), format='png')
+
+        plt.show()
 
     def summarize_decisions(self, num_env_to_analyze=1, fig_name=None):
         """
@@ -276,11 +277,12 @@ class Env(gym.Env):
 
         ax.legend()
         plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
-        plt.show()
 
         if fig_name:
-            path = Path(__file__).parent.parent.parent.joinpath('figures')
+            path = Path(__file__).parent.parent.joinpath('figures')
             plt.savefig(path.joinpath(f'{fig_name}.png'), format='png')
+
+        plt.show()
 
     def summarize_state_decisions(self, state, num_env_to_analyze=1, fig_name=None):
         """
@@ -295,11 +297,12 @@ class Env(gym.Env):
         plt.figure(figsize=(15, 10))
         plt.bar([self.action_title[i] for i in unique], counts)
         plt.xticks([self.action_title[i] for i in unique], fontsize=14)
-        plt.show()
 
         if fig_name:
-            path = Path(__file__).parent.parent.parent.joinpath('figures')
+            path = Path(__file__).parent.parent.joinpath('figures')
             plt.savefig(path.joinpath(f'{fig_name}.png'), format='png')
+
+        plt.show()
 
     def _simulation(self):
         """
@@ -461,7 +464,7 @@ class Env(gym.Env):
         elif data not in options:
             raise LookupError(f'{data} is not an option. Type "help" for more info.')
 
-        path = Path(__file__).parent.parent.parent.joinpath('figures')
+        path = Path(__file__).parent.parent.joinpath('figures')
         if not path.exists():
             path.mkdir()
 
