@@ -128,12 +128,13 @@ class Env(gym.Env):
         self.states = self._simulation()
         self.last_states = None
 
-        self.observation_space = MultiDiscrete([
-            len(self.mapping),  # Set of residual imbalance states
-            self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
-            self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
-
-        ])
+        self.observation_space = MultiDiscrete([len(self.mapping), 1])
+        # self.observation_space = MultiDiscrete([
+        #     len(self.mapping),  # Set of residual imbalance states
+        #     self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
+        #     self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
+        #
+        # ])
         self.action_space = Discrete(3)
 
         self._max_episode_steps = 10_000
@@ -371,7 +372,7 @@ class Env(gym.Env):
         self.portfolio = self.update_portfolio()
 
         return (
-            jnp.asarray(self.current_state.values),
+            jnp.asarray([self.current_state.values[0], 0]),
             self.reward_func(self.portfolio, last_portfolio, action, self.last_state, self.current_state),
             self.terminal,
             {}
@@ -572,7 +573,7 @@ class Env(gym.Env):
 
         self.num_trades.append(dict())
 
-        return jnp.asarray(self.current_state.values)
+        return jnp.asarray([self.current_state.values[0], 0])
 
     def __copy__(self):
         cls = self.__class__
