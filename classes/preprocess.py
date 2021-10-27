@@ -78,15 +78,103 @@ class Preprocess:
         self.__data['mid1'] = (self.__data.bid1 + self.__data.ask1) / 2
         self.__data['mid2'] = (self.__data.bid2 + self.__data.ask2) / 2
 
-        x = sm.add_constant(self.__data.mid2)
-        res = sm.OLS(self.__data.mid1, x).fit()
+        self.__data['logmid1'] = np.log(self.__data['mid1'])
+        self.__data['logmid2'] = np.log(self.__data['mid2'])
+
+        self.__data['logbid1'] = np.log(self.__data['bid1'])
+        self.__data['logbid2'] = np.log(self.__data['bid2'])
+        self.__data['logask1'] = np.log(self.__data['ask1'])
+        self.__data['logask2'] = np.log(self.__data['ask2'])
+
+        X = sm.add_constant(self.__data['logmid2'])
+        res = sm.OLS(self.__data['logmid1'], X).fit()
         constant = res.params[0]
         slope = res.params[1]
 
-        predicted_y = constant + slope * self.__data.mid2
-        self.__data['residuals'] = self.__data.mid1 - predicted_y
+        predicted_Y = constant + slope * self.__data['logmid2']
+        self.__data['residuals'] = self.__data['logmid1'] - predicted_Y
 
     def __prep_data(self):
+
+        df_flip = self.__data.copy()
+
+        df_flip.columns = ['time', 'ask1', 'ask_size1', 'bid1', 'bid_size1', 'ask2', 'ask_size2', 'bid2', 'bid_size2',
+                           'mid1', 'mid2', 'logmid1', 'logmid2', 'logbid1', 'logbid2', 'logask1', 'logask2',
+                           'residuals']
+        df_flip[['ask1', 'bid1', 'ask2', 'bid2', 'residuals']] = -df_flip[['ask1', 'bid1', 'ask2', 'bid2', 'residuals']]
+
+        change1 = self.__data.bid1[len(self.__data) - 1] - df_flip.bid1[0] - 0.01
+        change2 = self.__data.bid2[len(self.__data) - 1] - df_flip.bid2[0] - 0.01
+
+        df_flip[['ask1', 'bid1']] = df_flip[['ask1', 'bid1']] + change1
+        df_flip[['ask2', 'bid2']] = df_flip[['ask2', 'bid2']] + change2
+
+        df_flip['mid1'] = (df_flip.bid1 + df_flip.ask1) / 2
+        df_flip['mid2'] = (df_flip.bid2 + df_flip.ask2) / 2
+
+        self.__data['logmid1'] = np.log(self.__data['mid1'])
+        self.__data['logmid2'] = np.log(self.__data['mid2'])
+
+        # predicted_Y_flip=constant+slope*df_flip.logmid2
+
+        df_flip.time = pd.to_datetime(df_flip.time)
+        df_flip.time += timedelta(hours=5)
+
+        df = self.__data.set_index("time")
+        df.index = pd.to_datetime(df.index, utc=True)
+        df.loc[:, 'imb1'] = df.bid_size1 / (df.bid_size1 + df.ask_size1)
+        df.loc[:, 'imb2'] = df.bid_size2 / (df.bid_size2 + df.ask_size2)
+        df2 = df[['residuals', 'mid1', 'logmid1', 'mid2', 'logmid2', 'imb1', 'imb2']]
+        df2.index = df.index.shift(-20, freq='S')
+        df2.columns = ['residual_later', 'mid1_later', 'logmid1_later', 'mid2_later', 'logmid2_later', 'imb1_later',
+                       'imb2_later']
+        df = pd.merge_asof(df, df2, left_index=True, right_index=True, direction='forward')
+        df.loc[:, 'pnl'] = df.residual_later - df.residuals  # forward pnl
+        df.loc[:, 'mid1_diff'] = df.mid1_later - df.mid1
+        df.loc[:, 'mid2_diff'] = df.mid2_later - df.mid2
+        df.loc[:, 'logmid1_diff'] = df.logmid1_later - df.logmid1
+        df.loc[:, 'logmid2_diff'] = df.logmid2_later - df.logmid2
+        df = df.dropna()
+
+        df_flip = df_flip.set_index("time")
+        df_flip.index = pd.to_datetime(df_flip.index, utc=True)
+        df_flip.loc[:, 'imb1'] = df_flip.bid_size1 / (df_flip.bid_size1 + df_flip.ask_size1)
+        df_flip.loc[:, 'imb2'] = df_flip.bid_size2 / (df_flip.bid_size2 + df_flip.ask_size2)
+        df2_flip = df_flip[['residuals', 'mid1', 'logmid1', 'mid2', 'logmid2', 'imb1', 'imb2']]
+        df2_flip.index = df_flip.index.shift(-20, freq='S')  # - timedelta(minutes=5)  # data from 5 minutes later
+        # maybe to try to delay by ticks
+
+        df2_flip.columns = ['residual_later', 'mid1_later', 'logmid1_later', 'mid2_later', 'logmid2_later',
+                            'imb1_later', 'imb2_later']
+        df_flip = pd.merge_asof(df_flip, df2_flip, left_index=True, right_index=True, direction='forward')
+        df_flip.loc[:, 'pnl'] = df_flip.residual_later - df_flip.residuals  # forward pnl
+        df_flip.loc[:, 'mid1_diff'] = df_flip.mid1_later - df_flip.mid1
+        df_flip.loc[:, 'mid2_diff'] = df_flip.mid2_later - df_flip.mid2
+        df_flip.loc[:, 'logmid1_diff'] = df_flip.logmid1_later - df_flip.logmid1
+        df_flip.loc[:, 'logmid2_diff'] = df_flip.logmid2_later - df_flip.logmid2
+        df_flip = df_flip.dropna()
+
+        df = pd.concat([df, df_flip])
+
+        df.index = pd.to_datetime(df.index, utc=True)
+
+        df.loc[:, 'residual_bucket'] = pd.cut(df['residuals'], self.__residual_num, labels=False)
+
+        df.loc[:, 'imb1'] = df.bid_size1 / (df.bid_size1 + df.ask_size1)
+        df.loc[:, 'imb2'] = df.bid_size2 / (df.bid_size2 + df.ask_size2)
+        df.loc[:, 'imb1_bucket'] = pd.cut(df.imb1, self.__imb1_num, labels=False)
+        df.loc[:, 'imb2_bucket'] = pd.cut(df.imb2, self.__imb2_num, labels=False)
+        df.loc[:, 'state'] = df['residual_bucket'].astype(str) + df['imb1_bucket'].astype(str) + df['imb2_bucket'].astype(str)
+        df.loc[:, 'mid1_diff_cat'] = df['mid1_diff'].apply(lambda x: 1 if x > 0 else (0 if x == 0 else -1))
+        df.loc[:, 'mid2_diff_cat'] = df['mid2_diff'].apply(lambda x: 1 if x > 0 else (0 if x == 0 else -1))
+        df.loc[:, 'state2'] = df['residual_bucket'].astype(str) + df['imb1_bucket'].astype(str) + df['imb2_bucket'].astype(
+            str) + df['mid1_diff_cat'].astype(str) + df['mid2_diff_cat'].astype(str)
+        df.loc[:, 'continue'] = 1 / (1 + df['residual_bucket']) + (1 + df['imb1_bucket']) / 3 + 1 / (1 + df['imb2_bucket'])
+        df.loc[:, 'continue_cat'] = pd.cut(df['continue'], self.__residual_num * self.__imb1_num * self.__imb2_num, labels=False)
+
+        self.__data = df.copy()
+
+        """
         # symmetrize data and cut states
         df_flip = self.__data.copy()
         df_flip.columns = ['time', 'ask1', 'ask_size1', 'bid1', 'bid_size1', 'ask2', 'ask_size2', 'bid2', 'bid_size2',
@@ -142,6 +230,7 @@ class Preprocess:
         self.__data['imb2'] = self.__data.bid_size2 / (self.__data.bid_size2 + self.__data.ask_size2)
         self.__data['imb1_bucket'] = pd.cut(self.__data.imb1, self.__imb1_num, labels=False)
         self.__data['imb2_bucket'] = pd.cut(self.__data.imb2, self.__imb2_num, labels=False)
+        """
 
     def _process_step2(self):
         self.__data['dM1'] = 1 * (self.__data.mid1_diff > 0)
@@ -187,15 +276,14 @@ class Preprocess:
 
         return self._process_step3()
 
-    @staticmethod
-    def __get_rows_and_cols():
+    def __get_rows_and_cols(self):
         cols = list()
         rows = list()
 
         for dm in ['00', '10', '-10', '01', '0-1']:
-            for price_relation_d in range(6):
-                for s1_imb_d in range(3):
-                    for s2_imb_d in range(3):
+            for price_relation_d in range(self.__residual_num):
+                for s1_imb_d in range(self.__imb1_num):
+                    for s2_imb_d in range(self.__imb2_num):
                         row_name = f'{price_relation_d}{s1_imb_d}{s2_imb_d}'
                         cols.append(f'{row_name}{dm}')
                         if row_name not in rows:
