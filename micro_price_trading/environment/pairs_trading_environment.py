@@ -21,7 +21,7 @@ def portfolio_value(current_portfolio, last_portfolio, action, last_state, curre
     return sum(current_portfolio)
 
 
-class Env(TwoAssetSimulation, PairsTradingBroker, gym.Env):
+class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
     """
     :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
     :parameter prob: transition matrix between states. optional if using class data

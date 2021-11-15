@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 import numpy as np
 import pandas as pd
 
-from micro_price_trading.history.history import History
+from .history import History
 
 Allocation = Optional[List[Union[float, int]]]
 

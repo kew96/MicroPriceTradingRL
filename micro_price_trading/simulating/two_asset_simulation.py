@@ -1,7 +1,7 @@
 import pandas as pd
 from numpy import random
 
-from micro_price_trading.simulating.simulation import Simulation
+from .simulation import Simulation
 
 
 class TwoAssetSimulation(Simulation):

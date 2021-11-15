@@ -1,1 +1,1 @@
-from preprocess import Data, Preprocess
+from .preprocess import Preprocess, Data

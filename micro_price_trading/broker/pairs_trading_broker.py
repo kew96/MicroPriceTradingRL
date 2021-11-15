@@ -2,10 +2,11 @@ from typing import List, Union, Optional
 
 import pandas as pd
 
+from .broker import Broker
 from micro_price_trading.history.pairs_trading_history import PairsTradingHistory, Allocation
 
 
-class PairsTradingBroker(PairsTradingHistory):
+class PairsTradingBroker(Broker, PairsTradingHistory):
 
     def __init__(
             self,
@@ -20,7 +21,7 @@ class PairsTradingBroker(PairsTradingHistory):
             max_position: int = 10,
             reverse_mapping: Optional[dict] = None
     ):
-        super().__init__(
+        PairsTradingHistory.__init__(
             current_state=current_state,
             start_allocation=start_allocation,
             reverse_mapping=reverse_mapping,
