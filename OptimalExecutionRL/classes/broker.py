@@ -1,7 +1,5 @@
-from .env_history import EnvHistory
 
-
-class Broker(EnvHistory):
+class Broker:
 
     def __init__(
             self,

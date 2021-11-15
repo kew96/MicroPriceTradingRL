@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-ASSET_DATA_PATH = Path(__file__).parent.parent.joinpath('asset_data')
+ASSET_DATA_PATH = Path(__file__).parent.parent.parent.joinpath('asset_data')
 
 
 @dataclass
