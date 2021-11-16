@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-ASSET_DATA_PATH = Path(__file__).parent.parent.joinpath('asset_data')
+from micro_price_trading.config import DATA_PATH
 
 
 @dataclass
@@ -31,8 +31,8 @@ class Preprocess:
             file_prefix: Optional[str] = None
     ):
         self.__data_file = data
-        self.__data = pd.read_csv(ASSET_DATA_PATH.joinpath(data))
-        self.__transition_matrix = pd.read_csv(ASSET_DATA_PATH.joinpath(transition_matrix)) if transition_matrix else None
+        self.__data = pd.read_csv(DATA_PATH.joinpath(data))
+        self.__transition_matrix = pd.read_csv(DATA_PATH.joinpath(transition_matrix)) if transition_matrix else None
 
         if not file_prefix and isinstance(data, str):
             if '2' in data or '3' in data or '4' in data:
@@ -69,7 +69,7 @@ class Preprocess:
 
         self.__data = self.__data.dropna()
 
-        file_name = ASSET_DATA_PATH.joinpath(self.__file_prefix + '_2.csv')
+        file_name = DATA_PATH.joinpath(self.__file_prefix + '_2.csv')
         self.__data.to_csv(file_name)
 
         return self._process_step2()
@@ -179,8 +179,8 @@ class Preprocess:
         prob = prob[list(m4.columns)]  # reorder elements
         self.__transition_matrix = prob
 
-        prob_file = ASSET_DATA_PATH.joinpath(self.__file_prefix[:-5] + '_transition_matrix.csv')
-        data_file = ASSET_DATA_PATH.joinpath(self.__file_prefix + '_3.csv')
+        prob_file = DATA_PATH.joinpath(self.__file_prefix[:-5] + '_transition_matrix.csv')
+        data_file = DATA_PATH.joinpath(self.__file_prefix + '_3.csv')
 
         self.__transition_matrix.to_csv(prob_file)
         self.__data.to_csv(data_file)
@@ -217,7 +217,7 @@ class Preprocess:
         self.__data['micro1'] = self.__data.mid1 + self.__data.micro1_adj
         self.__data['micro2'] = self.__data.mid2 + self.__data.micro2_adj
 
-        file = ASSET_DATA_PATH.joinpath(self.__file_prefix + '_4.csv')
+        file = DATA_PATH.joinpath(self.__file_prefix + '_4.csv')
         self.__data.to_csv(file)
 
         return Data(self.__data, self.__transition_matrix)
