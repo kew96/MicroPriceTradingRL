@@ -22,6 +22,7 @@ class PairsTradingBroker(Broker, PairsTradingHistory):
             reverse_mapping: Optional[dict] = None
     ):
         PairsTradingHistory.__init__(
+            self,
             current_state=current_state,
             start_allocation=start_allocation,
             reverse_mapping=reverse_mapping,
@@ -112,7 +113,8 @@ class PairsTradingBroker(Broker, PairsTradingHistory):
         return trade_price
 
     def _reset_broker(self, current_state):
-        super()._reset_env_history(
+        PairsTradingHistory._reset_history(
+            self,
             current_state=current_state
         )
 
