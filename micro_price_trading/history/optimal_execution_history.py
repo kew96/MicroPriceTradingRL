@@ -3,10 +3,12 @@ from typing import List, Optional, Union
 import numpy as np
 import pandas as pd
 
+from .history import History
+
 Allocation = Optional[List[Union[float, int]]]
 
 
-class EnvHistory:
+class OptimalExecutionHistory(History):
 
     def __init__(
             self,

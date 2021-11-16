@@ -1,5 +1,7 @@
+from .broker import Broker
 
-class Broker:
+
+class OptimalExecutionBroker(Broker):
 
     def __init__(
             self,
