@@ -154,26 +154,42 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
         self.observation_space = MultiDiscrete([
             len(self.mapping),  # Set of residual imbalance states
-            self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
-            self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value,
-            self.ite,  # Number of trading periods in run,
-            self.max_position*2+1  # Current position
+            # self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
+            # self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value,
+            # self.ite,  # Number of trading periods in run,
+            # self.max_position*2+1  # Current position,
+            1  # Needed for compatability with other packages
         ])
         self.action_space = Discrete(max_position*2+1)
+        self.readable_action_space = self.__generate_readable_action_space()
 
         self._max_episode_steps = 10_000
 
-        ######### MOVE TO PARENT CLASSES ##################
+        # TODO: Move to parent classes
         self.no_trade_penalty = no_trade_penalty
         self.trades = [1]
         self.min_trades = min_trades
         self.lookback = lookback
-        assert lookback > self.no_trade_period
+        assert (lookback is None or lookback == 0 or lookback > self.no_trade_period,
+                f'lookback={lookback}, no_trade_period={self.no_trade_period}')
 
         self.threshold = threshold
         self.hard_stop_penalty = hard_stop_penalty
 
-        #####################################################
+        #
+
+    def __generate_readable_action_space(self):
+        actions = dict()
+        n_actions = self.action_space.n
+
+        for key in range(n_actions):
+            if key < n_actions // 2:
+                actions[key] = f'Short/Long {n_actions//2-key}x'
+            elif key > n_actions // 2:
+                actions[key] = f'Long/Short {key-n_actions//2}x'
+            else:
+                actions[key] = 'Flat'
+        return actions
 
     def step(self, action):
         old_portfolio = self.portfolio.copy()
@@ -221,7 +237,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             self.state_index += 1
             self.current_state = self.states.iloc[self.state_index, :]
 
-            self._update_histories(
+            self._update_history(
                 portfolio=self.portfolio,
                 shares=self.shares,
                 position=action,
@@ -242,43 +258,37 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         else:
             penalty = 0
 
-        next_state = self.current_state.values
-        next_state = np.append(next_state, sum(self.trades[-self.lookback:]))
-        next_state = np.append(next_state, self.position)
-
         self.terminal = self.state_index >= len(self.states) - 1
 
         if sum(self.portfolio) <= self.threshold:
             self.terminal = True
 
             return (
-                jnp.asarray(next_state),
+                jnp.asarray([self.current_state.values[0], 0]),
                 -self.hard_stop_penalty,
                 self.terminal,
                 {}
             )
         else:
             return (
-                jnp.asarray(next_state),
+                jnp.asarray([self.current_state.values[0], 0]),
                 self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state) - penalty,
                 self.terminal,
                 {}
             )
 
     def reset(self):
-        super()._reset_simulation()
+        TwoAssetSimulation._reset_simulation(self)
 
         self.state_index = 0
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
-        super()._reset_broker(current_state=self.current_state)
+        PairsTradingBroker._reset_broker(self, current_state=self.current_state)
 
         self.num_trades.append(dict())
 
-        # TODO should i include the reward func here somehow?
-
-        return jnp.asarray(self.current_state.values)
+        return jnp.asarray([self.current_state.values[0], 0])
 
     def render(self, mode="human"):
         return None
