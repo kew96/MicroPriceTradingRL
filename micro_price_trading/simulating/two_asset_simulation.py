@@ -11,7 +11,7 @@ class TwoAssetSimulation(Simulation):
             *args,
             **kwargs
     ):
-        Simulation.__init__(*args, **kwargs)
+        Simulation.__init__(self, *args, **kwargs)
 
     def _simulate(self):
         """
@@ -50,7 +50,7 @@ class TwoAssetSimulation(Simulation):
         return simu
 
     @staticmethod
-    def __get_mapping():
+    def _get_mapping():
         rows = []
         for price_relation_d in range(6):
             for s1_imb_d in range(3):
