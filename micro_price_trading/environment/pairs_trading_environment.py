@@ -1,4 +1,3 @@
-from pathlib import Path
 from copy import deepcopy
 from collections import Callable
 from typing import Union, Optional
@@ -12,9 +11,11 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 from micro_price_trading.preprocessing.preprocess import Data
+from micro_price_trading.broker.pairs_trading_broker import Allocation
 
-from micro_price_trading.broker.pairs_trading_broker import PairsTradingBroker, Allocation
-from micro_price_trading.simulating.two_asset_simulation import TwoAssetSimulation
+from micro_price_trading import PairsTradingBroker, TwoAssetSimulation
+
+from micro_price_trading.config import PAIRS_TRADING_FIGURES
 
 
 def portfolio_value(current_portfolio, last_portfolio, action, last_state, current_state):
@@ -323,9 +324,8 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         elif data not in options:
             raise LookupError(f'{data} is not an option. Type "help" for more info.')
 
-        path = Path(__file__).parent.parent.joinpath('figures')
-        if not path.exists():
-            path.mkdir()
+        if not PAIRS_TRADING_FIGURES.exists():
+            PAIRS_TRADING_FIGURES.mkdir()
 
         if data == 'portfolio_history':
             fig, axs = plt.subplots(figsize=(15, 10))
@@ -356,7 +356,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             fig.legend(fontsize=14)
             fig.suptitle('Portfolio Value', fontsize=14)
 
-            fig.savefig(path.joinpath('portfolio_history.png'), format='png')
+            fig.savefig(PAIRS_TRADING_FIGURES.joinpath('portfolio_history.png'), format='png')
 
         elif data == 'position_history':
             fig, axs = plt.subplots(figsize=(15, 10))
@@ -370,7 +370,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             fig.legend(fontsize=14)
             fig.suptitle('Position', fontsize=14)
 
-            fig.savefig(path.joinpath('position_history.png'), format='png')
+            fig.savefig(PAIRS_TRADING_FIGURES.joinpath('position_history.png'), format='png')
 
         elif data == 'asset_paths':
             fig, axs = plt.subplots(2, figsize=(15, 13))
@@ -401,7 +401,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             axs[0].legend(fontsize=14)
             fig.suptitle('Asset Paths', fontsize=14)
 
-            fig.savefig(path.joinpath('asset_paths.png'), format='png')
+            fig.savefig(PAIRS_TRADING_FIGURES.joinpath('asset_paths.png'), format='png')
 
         elif data == 'summarize_decisions':
             """
