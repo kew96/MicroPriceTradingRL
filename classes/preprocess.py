@@ -1,5 +1,5 @@
 # The Preprocess class has been adapted from the notebooks 2 through 4
-# found at https://github.com/xhshenxin/Micro_Price
+# found at https://github.com/xhshenxin/Micro_Price and from Jinxuan (Jack) Li
 
 from pathlib import Path, PosixPath
 from typing import Optional, Union
@@ -10,13 +10,16 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-ASSET_DATA_PATH = Path(__file__).parent.parent.joinpath('asset_data')
+from micro_price_trading.config import DATA_PATH
 
 
 @dataclass
 class Data:
     data: pd.DataFrame
     transition_matrix: pd.DataFrame
+    res_bins: int
+    imb1_bins: int
+    imb2_bins: int
 
 
 class Preprocess:
@@ -25,56 +28,34 @@ class Preprocess:
             self,
             data: Union[str, PosixPath],
             transition_matrix: Optional[str] = None,
-            residual_num: int = 6,
-            imb1_num: int = 3,
-            imb2_num: int = 3,
+            res_bin: int = 6,
+            imb1_bin: int = 3,
+            imb2_bin: int = 3,
+            quantile: bool = False,
+            tick_shift: int = 1,
             file_prefix: Optional[str] = None
     ):
         self.__data_file = data
-        self.__data = pd.read_csv(ASSET_DATA_PATH.joinpath(data))
-        self.__transition_matrix = pd.read_csv(ASSET_DATA_PATH.joinpath(transition_matrix)) if transition_matrix else None
+        self.__data = pd.read_csv(DATA_PATH.joinpath(data))
+        self.__transition_matrix = pd.read_csv(DATA_PATH.joinpath(transition_matrix)) if transition_matrix else None
 
         if not file_prefix and isinstance(data, str):
-            if '2' in data or '3' in data or '4' in data:
-                self.__file_prefix = data[:-6]
-            else:
-                self.__file_prefix = data[:-4]
+            self.__file_prefix = data[:-4]
         elif not file_prefix:
-            if '2' in data.name or '3' in data.name or '4' in data.name:
-                self.__file_prefix = data.name[:-6]
-            else:
-                self.__file_prefix = data.name[:-4]
+            self.__file_prefix = data.name[:-4]
         else:
             self.__file_prefix = file_prefix
 
-        self.__residual_num = residual_num
-        self.__imb1_num = imb1_num
-        self.__imb2_num = imb2_num
+        self.__res_bin = res_bin
+        self.__imb1_bin = imb1_bin
+        self.__imb2_bin = imb2_bin
+        self.__quantile = quantile
+        self.__tick_shift = tick_shift
 
-    def _process_step1(self):
-        # remove the first row because the time interval btw row 0 and 1 is not 10 seconds
-        self.__data = self.__data.drop(index=[0])
-        self.__data = self.__data.reset_index(drop=True)
+    def _process_data(self):
+        self._preprocess()
 
-        self.__calculate_parameters()
-        self.__prep_data()
-
-        x1 = self.__data.groupby('imb1_bucket')[['mid1_diff']].mean()
-        x2 = self.__data.groupby('imb2_bucket')[['mid2_diff']].mean()
-
-        self.__data = self.__data.assign(
-            G1_It=self.__data.imb1_bucket.map(x1.mid1_diff),
-            G2_It=self.__data.imb2_bucket.map(x2.mid2_diff)
-        )
-
-        self.__data = self.__data.dropna()
-
-        file_name = ASSET_DATA_PATH.joinpath(self.__file_prefix + '_2.csv')
-        self.__data.to_csv(file_name)
-
-        return self._process_step2()
-
-    def __calculate_parameters(self):
+        # residual bucket
         self.__data['mid1'] = (self.__data.bid1 + self.__data.ask1) / 2
         self.__data['mid2'] = (self.__data.bid2 + self.__data.ask2) / 2
 
@@ -94,293 +75,79 @@ class Preprocess:
         predicted_Y = constant + slope * self.__data['logmid2']
         self.__data['residuals'] = self.__data['logmid1'] - predicted_Y
 
-    def __prep_data(self):
+        # forward PnL from residual
+        self.__data['forward_pnl'] = self.__data['residuals'].shift(-self.__tick_shift) - self.__data['residuals']
+        self.__data['mid1_diff'] = self.__data['mid1'].shift(-self.__tick_shift) - self.__data['mid1']
+        self.__data['mid2_diff'] = self.__data['mid2'].shift(-self.__tick_shift) - self.__data['mid2']
 
-        df_flip = self.__data.copy()
+        # calculate imb1 and imb2
+        self.__data['imb1'] = self.__data['bid_size1'] / (self.__data['bid_size1'] + self.__data['ask_size1'])
+        self.__data['imb2'] = self.__data['bid_size2'] / (self.__data['bid_size2'] + self.__data['ask_size2'])
 
-        df_flip.columns = ['time', 'ask1', 'ask_size1', 'bid1', 'bid_size1', 'ask2', 'ask_size2', 'bid2', 'bid_size2',
-                           'mid1', 'mid2', 'logmid1', 'logmid2', 'logbid1', 'logbid2', 'logask1', 'logask2',
-                           'residuals']
-        df_flip[['ask1', 'bid1', 'ask2', 'bid2', 'residuals']] = -df_flip[['ask1', 'bid1', 'ask2', 'bid2', 'residuals']]
+        # classify the mid_diff
+        self.__data['mid1_diff_bin'] = 2 * (self.__data['mid1_diff'] >= 0)
+        self.__data['mid1_diff_bin'] -= 1 * (self.__data['mid1_diff'] == 0)
+        # self.__data['mid1_diff_bin'] -= 1*(self.__data['mid1_diff'] < 0)
+        self.__data['mid2_diff_bin'] = 2 * (self.__data['mid2_diff'] >= 0)
+        self.__data['mid2_diff_bin'] -= 1 * (self.__data['mid2_diff'] == 0)
+        # self.__data['mid2_diff_bin'] -= 1*(self.__data['mid2_diff'] < 0)
 
-        change1 = self.__data.bid1[len(self.__data) - 1] - df_flip.bid1[0] - 0.01
-        change2 = self.__data.bid2[len(self.__data) - 1] - df_flip.bid2[0] - 0.01
+        # binning residual, imb1, imb2
+        if self.__quantile:
+            self.__data['self.__res_bin'] = pd.qcut(self.__data['residuals'], self.__res_bin, labels=False)
+            self.__data['imb1_bin'] = pd.qcut(self.__data['imb1'], self.__imb1_bin, labels=False)
+            self.__data['imb2_bin'] = pd.qcut(self.__data['imb2'], self.__imb2_bin, labels=False)
+        else:
+            self.__data['self.__res_bin'] = pd.cut(self.__data['residuals'], self.__res_bin, labels=False)
+            self.__data['imb1_bin'] = pd.cut(self.__data['imb1'], self.__imb1_bin, labels=False)
+            self.__data['imb2_bin'] = pd.cut(self.__data['imb2'], self.__imb2_bin, labels=False)
 
-        df_flip[['ask1', 'bid1']] = df_flip[['ask1', 'bid1']] + change1
-        df_flip[['ask2', 'bid2']] = df_flip[['ask2', 'bid2']] + change2
-
-        df_flip['mid1'] = (df_flip.bid1 + df_flip.ask1) / 2
-        df_flip['mid2'] = (df_flip.bid2 + df_flip.ask2) / 2
-
-        self.__data['logmid1'] = np.log(self.__data['mid1'])
-        self.__data['logmid2'] = np.log(self.__data['mid2'])
-
-        # predicted_Y_flip=constant+slope*df_flip.logmid2
-
-        df_flip.time = pd.to_datetime(df_flip.time)
-        df_flip.time += timedelta(hours=5)
-
-        df = self.__data.set_index("time")
-        df.index = pd.to_datetime(df.index, utc=True)
-        df.loc[:, 'imb1'] = df.bid_size1 / (df.bid_size1 + df.ask_size1)
-        df.loc[:, 'imb2'] = df.bid_size2 / (df.bid_size2 + df.ask_size2)
-        df2 = df[['residuals', 'mid1', 'logmid1', 'mid2', 'logmid2', 'imb1', 'imb2']]
-        df2.index = df.index.shift(-20, freq='S')
-        df2.columns = ['residual_later', 'mid1_later', 'logmid1_later', 'mid2_later', 'logmid2_later', 'imb1_later',
-                       'imb2_later']
-        df = pd.merge_asof(df, df2, left_index=True, right_index=True, direction='forward')
-        df.loc[:, 'pnl'] = df.residual_later - df.residuals  # forward pnl
-        df.loc[:, 'mid1_diff'] = df.mid1_later - df.mid1
-        df.loc[:, 'mid2_diff'] = df.mid2_later - df.mid2
-        df.loc[:, 'logmid1_diff'] = df.logmid1_later - df.logmid1
-        df.loc[:, 'logmid2_diff'] = df.logmid2_later - df.logmid2
-        df = df.dropna()
-
-        df_flip = df_flip.set_index("time")
-        df_flip.index = pd.to_datetime(df_flip.index, utc=True)
-        df_flip.loc[:, 'imb1'] = df_flip.bid_size1 / (df_flip.bid_size1 + df_flip.ask_size1)
-        df_flip.loc[:, 'imb2'] = df_flip.bid_size2 / (df_flip.bid_size2 + df_flip.ask_size2)
-        df2_flip = df_flip[['residuals', 'mid1', 'logmid1', 'mid2', 'logmid2', 'imb1', 'imb2']]
-        df2_flip.index = df_flip.index.shift(-20, freq='S')  # - timedelta(minutes=5)  # data from 5 minutes later
-        # maybe to try to delay by ticks
-
-        df2_flip.columns = ['residual_later', 'mid1_later', 'logmid1_later', 'mid2_later', 'logmid2_later',
-                            'imb1_later', 'imb2_later']
-        df_flip = pd.merge_asof(df_flip, df2_flip, left_index=True, right_index=True, direction='forward')
-        df_flip.loc[:, 'pnl'] = df_flip.residual_later - df_flip.residuals  # forward pnl
-        df_flip.loc[:, 'mid1_diff'] = df_flip.mid1_later - df_flip.mid1
-        df_flip.loc[:, 'mid2_diff'] = df_flip.mid2_later - df_flip.mid2
-        df_flip.loc[:, 'logmid1_diff'] = df_flip.logmid1_later - df_flip.logmid1
-        df_flip.loc[:, 'logmid2_diff'] = df_flip.logmid2_later - df_flip.logmid2
-        df_flip = df_flip.dropna()
-
-        df = pd.concat([df, df_flip])
-
-        df.index = pd.to_datetime(df.index, utc=True)
-
-        df.loc[:, 'residual_bucket'] = pd.cut(df['residuals'], self.__residual_num, labels=False)
-
-        df.loc[:, 'imb1'] = df.bid_size1 / (df.bid_size1 + df.ask_size1)
-        df.loc[:, 'imb2'] = df.bid_size2 / (df.bid_size2 + df.ask_size2)
-        df.loc[:, 'imb1_bucket'] = pd.cut(df.imb1, self.__imb1_num, labels=False)
-        df.loc[:, 'imb2_bucket'] = pd.cut(df.imb2, self.__imb2_num, labels=False)
-        df.loc[:, 'state'] = df['residual_bucket'].astype(str) + df['imb1_bucket'].astype(str) + df['imb2_bucket'].astype(str)
-        df.loc[:, 'mid1_diff_cat'] = df['mid1_diff'].apply(lambda x: 1 if x > 0 else (0 if x == 0 else -1))
-        df.loc[:, 'mid2_diff_cat'] = df['mid2_diff'].apply(lambda x: 1 if x > 0 else (0 if x == 0 else -1))
-        df.loc[:, 'state2'] = df['residual_bucket'].astype(str) + df['imb1_bucket'].astype(str) + df['imb2_bucket'].astype(
-            str) + df['mid1_diff_cat'].astype(str) + df['mid2_diff_cat'].astype(str)
-        df.loc[:, 'continue'] = 1 / (1 + df['residual_bucket']) + (1 + df['imb1_bucket']) / 3 + 1 / (1 + df['imb2_bucket'])
-        df.loc[:, 'continue_cat'] = pd.cut(df['continue'], self.__residual_num * self.__imb1_num * self.__imb2_num, labels=False)
-
-        self.__data = df.copy()
-
-        """
-        # symmetrize data and cut states
-        df_flip = self.__data.copy()
-        df_flip.columns = ['time', 'ask1', 'ask_size1', 'bid1', 'bid_size1', 'ask2', 'ask_size2', 'bid2', 'bid_size2',
-                           'mid1', 'mid2', 'residuals']
-        df_flip[['ask1', 'bid1', 'ask2', 'bid2', 'residuals']] = -df_flip[['ask1', 'bid1', 'ask2', 'bid2', 'residuals']]
-
-        change1 = self.__data.bid1[len(self.__data) - 1] - df_flip.bid1[0] - 0.01
-        change2 = self.__data.bid2[len(self.__data) - 1] - df_flip.bid2[0] - 0.01
-
-        df_flip[['ask1', 'bid1']] = df_flip[['ask1', 'bid1']] + change1
-        df_flip[['ask2', 'bid2']] = df_flip[['ask2', 'bid2']] + change2
-
-        df_flip['mid1'] = (df_flip.bid1 + df_flip.ask1) / 2
-        df_flip['mid2'] = (df_flip.bid2 + df_flip.ask2) / 2
-
-        df_flip.time = pd.to_datetime(df_flip.time)
-        df_flip.time += timedelta(hours=5)
-
-        self.__data = self.__data.set_index("time")
-
-        self.__data.index = pd.to_datetime(self.__data.index, utc=True)
-        self.__data['imb1'] = self.__data.bid_size1 / (self.__data.bid_size1 + self.__data.ask_size1)
-        self.__data['imb2'] = self.__data.bid_size2 / (self.__data.bid_size2 + self.__data.ask_size2)
-        df2 = self.__data[['residuals', 'mid1', 'mid2', 'imb1', 'imb2']]
-        df2.index = self.__data.index.shift(-10, freq='S')
-        df2.columns = ['residual_later', 'mid1_later', 'mid2_later', 'imb1_later', 'imb2_later']
-        self.__data = pd.merge_asof(self.__data, df2, left_index=True, right_index=True, direction='forward')
-        self.__data['pnl'] = self.__data.residual_later - self.__data.residuals  # forward pnl
-        self.__data['mid1_diff'] = self.__data.mid1_later - self.__data.mid1
-        self.__data['mid2_diff'] = self.__data.mid2_later - self.__data.mid2
+        self.__data['state'] = (
+                self.__data['self.__res_bin'].astype(str) +
+                self.__data['imb1_bin'].astype(str) +
+                self.__data['imb2_bin'].astype(str) +
+                self.__data['mid1_diff_bin'].astype(str) +
+                self.__data['mid2_diff_bin'].astype(str)
+        )
+        self.__data['state_later'] = self.__data['state'].shift(-1)
+        # dropna due to shift
         self.__data = self.__data.dropna()
+        self.__data['state'] = self.__data.state.str[:3]
 
-        df_flip = df_flip.set_index("time")
-        df_flip.index = pd.to_datetime(df_flip.index, utc=True)
-        df_flip['imb1'] = df_flip.bid_size1 / (df_flip.bid_size1 + df_flip.ask_size1)
-        df_flip['imb2'] = df_flip.bid_size2 / (df_flip.bid_size2 + df_flip.ask_size2)
-        df2_flip = df_flip[['residuals', 'mid1', 'mid2', 'imb1', 'imb2']]
-        df2_flip.index = df_flip.index.shift(-10, freq='S')
-        df2_flip.columns = ['residual_later', 'mid1_later', 'mid2_later', 'imb1_later', 'imb2_later']
-        df_flip = pd.merge_asof(df_flip, df2_flip, left_index=True, right_index=True, direction='forward')
-        df_flip['pnl'] = df_flip.residual_later - df_flip.residuals  # forward pnl
-        df_flip['mid1_diff'] = df_flip.mid1_later - df_flip.mid1
-        df_flip['mid2_diff'] = df_flip.mid2_later - df_flip.mid2
-        df_flip = df_flip.dropna()
-
-        self.__data = pd.concat([self.__data, df_flip])
-
-        self.__data.index = pd.to_datetime(self.__data.index, utc=True)
-
-        self.__data['residual_bucket'] = pd.cut(self.__data['residuals'], self.__residual_num, labels=False)
-
-        self.__data['imb1'] = self.__data.bid_size1 / (self.__data.bid_size1 + self.__data.ask_size1)
-        self.__data['imb2'] = self.__data.bid_size2 / (self.__data.bid_size2 + self.__data.ask_size2)
-        self.__data['imb1_bucket'] = pd.cut(self.__data.imb1, self.__imb1_num, labels=False)
-        self.__data['imb2_bucket'] = pd.cut(self.__data.imb2, self.__imb2_num, labels=False)
+    def _markov_matrix(self):
         """
+        Generates the markov transition matrix from the data.
+        It takes input dataframe of a returned object from preprocess function.
+        """
+        self.__transition_matrix = pd.crosstab(self.__data['state'], self.__data['state_later'], normalize='index')
+        self.__transition_matrix = self.__transition_matrix.reset_index()
+        self.__transition_matrix = self.__transition_matrix.set_index('state')
 
-    def _process_step2(self):
-        self.__data['dM1'] = 1 * (self.__data.mid1_diff > 0)
-        self.__data.dM1 -= 1 * (self.__data.mid1_diff < 0)
-        self.__data['dM2'] = 1 * (self.__data.mid2_diff > 0)
-        self.__data.dM2 -= 1 * (self.__data.mid2_diff < 0)
-
-        self.__data['residual_bucket'], bins_res = pd.cut(self.__data['residuals'], self.__residual_num, labels=False, retbins=True)
-        self.__data['residual_bucket_later'] = pd.cut(self.__data['residual_later'], bins_res, labels=False)
-
-        self.__data['imb1_bucket'], bins_imb1 = pd.cut(self.__data.imb1, self.__imb1_num, labels=False, retbins=True)
-        self.__data['imb2_bucket'], bins_imb2 = pd.cut(self.__data.imb2, self.__imb2_num, labels=False, retbins=True)
-        self.__data['imb1_bucket_later'] = pd.cut(self.__data['imb1_later'], bins_imb1, labels=False)
-        self.__data['imb2_bucket_later'] = pd.cut(self.__data['imb2_later'], bins_imb2, labels=False)
-        self.__data['current_state'] = (
-                self.__data["residual_bucket"].astype(str) +
-                self.__data["imb1_bucket"].astype(str) +
-                self.__data["imb2_bucket"].astype(str)
-        )
-        self.__data['later_state'] = (
-                self.__data["residual_bucket_later"].astype(str) +
-                self.__data["imb1_bucket_later"].astype(str) +
-                self.__data["imb2_bucket_later"].astype(str) +
-                self.__data.dM1.astype(str) +
-                self.__data.dM2.astype(str)
-        )
-
-        x = self.__data.dM1.astype(str) + self.__data.dM2.astype(str)
-        self.__data = self.__data.drop(index=self.__data.index[np.where((x == '-1-1') | (x == '11'))])
-
-        rows, cols = self.__get_rows_and_cols()
-        m4 = pd.DataFrame(0, index=rows, columns=cols)
-        prob_raw = pd.crosstab(self.__data.current_state, self.__data.later_state, normalize='index')  # raw prob table
-        prob = m4.add(prob_raw, fill_value=0)  # complete probability table
-        prob = prob[list(m4.columns)]  # reorder elements
-        self.__transition_matrix = prob
-
-        prob_file = ASSET_DATA_PATH.joinpath(self.__file_prefix[:-5] + '_transition_matrix.csv')
-        data_file = ASSET_DATA_PATH.joinpath(self.__file_prefix + '_3.csv')
-
-        self.__transition_matrix.to_csv(prob_file)
-        self.__data.to_csv(data_file)
-
-        return self._process_step3()
-
-    def __get_rows_and_cols(self):
-        cols = list()
-        rows = list()
-
-        for dm in ['00', '10', '-10', '01', '0-1']:
-            for price_relation_d in range(self.__residual_num):
-                for s1_imb_d in range(self.__imb1_num):
-                    for s2_imb_d in range(self.__imb2_num):
-                        row_name = f'{price_relation_d}{s1_imb_d}{s2_imb_d}'
-                        cols.append(f'{row_name}{dm}')
-                        if row_name not in rows:
-                            rows.append(row_name)
-
-        return rows, cols
-
-    def _process_step3(self):
-        Gstar, BC, G1, B, Q, T, R, K = self.__matrix_Gstar_BC_G1()
-
-        self.__data['current_state'] = self.__data['current_state'].astype(str)
-        self.__data['later_state'] = self.__data['later_state'].astype(str)
-
-        self.__data = self.__data.assign(
-            micro1_adj=self.__data.current_state.map(Gstar.price1_change_5step),
-            micro2_adj=self.__data.current_state.map(Gstar.price2_change_5step)
-
-        )
-        self.__data['micro1'] = self.__data.mid1 + self.__data.micro1_adj
-        self.__data['micro2'] = self.__data.mid2 + self.__data.micro2_adj
-
-        file = ASSET_DATA_PATH.joinpath(self.__file_prefix + '_4.csv')
-        self.__data.to_csv(file)
-
-        return Data(self.__data, self.__transition_matrix)
-
-    def __matrix_Gstar_BC_G1(self, step_forward=5):
-        state_num = self.__residual_num * self.__imb1_num * self.__imb2_num
-
-        tm = self.__transition_matrix.iloc[:, :state_num]  # price no change
-
-        s1_up = self.__transition_matrix.iloc[:, state_num:state_num * 2]  # price 1 up
-        s1_up_mat = np.matrix(s1_up)
-
-        s1_down = self.__transition_matrix.iloc[:, state_num * 2:state_num * 3]  # price 1 down
-        s1_down_mat = np.matrix(s1_down)
-
-        s2_up = self.__transition_matrix.iloc[:, state_num * 3:state_num * 4]  # price 2 up
-        s2_up_mat = np.matrix(s2_up)
-
-        s2_down = self.__transition_matrix.iloc[:, state_num * 4:state_num * 5]  # price 2 down
-        s2_down_mat = np.matrix(s2_down)
-
-        Q = np.matrix(tm.to_numpy())  # transient matrix
-        n = Q.shape[0]
-        tick = 0.01
-
-        R = np.zeros((n, 4))
-        R[:, 0] = s1_up.sum(axis=1, skipna=True)
-        R[:, 1] = s1_down.sum(axis=1, skipna=True)
-        R[:, 2] = s2_up.sum(axis=1, skipna=True)
-        R[:, 3] = s2_down.sum(axis=1, skipna=True)
-        R = np.matrix(R)  # absorbing matrix
-
-        T = s1_up_mat + s1_down_mat + s2_up_mat + s2_down_mat  # transaction matrix
-        K = np.matrix([[tick, 0], [-tick, 0], [0, tick], [0, -tick]])
-        G1 = np.linalg.inv(np.identity(n) - Q).dot(R).dot(K)
-        B = np.linalg.inv(np.identity(n) - Q).dot(T)
-        #     T_series =  list(map(np.matrix,[s1_up,s1_down,s2_up,s2_down]))
-
-        Gstar = G1
-        BC = B
-
-        for i in range(step_forward - 1):
-            Gstar = Gstar + BC.dot(G1)
-            BC = BC.dot(B)
-        Gstar = pd.DataFrame(Gstar, index=tm.index, columns=['price1_change_' + str(step_forward) + 'step',
-                                                             'price2_change_' + str(step_forward) + 'step'])
-
-        return Gstar, BC, G1, B, Q, T, R, K
+    def _preprocess(self):
+        self.__data.loc[:, 'time'] = pd.to_datetime(self.__data.time)
+        self.__data = self.__data.set_index('time')
+        self.__data = self.__data.drop_duplicates()
 
     def process(self):
-        if isinstance(self.__data_file, str):
-            if '2' in self.__data_file:
-                return self._process_step2()
-            elif '3' in self.__data_file:
-                if not self.__transition_matrix:
-                    raise NameError('No transition matrix given')
-                return self._process_step3()
-            elif '4' in self.__data_file:
-                if not self.__transition_matrix:
-                    raise NameError('No transition matrix given')
-                return Data(self.__data, self.__transition_matrix)
+        if not self.__transition_matrix:
+            if isinstance(self.__data_file, str):
+                self._process_data()
+            elif isinstance(self.__data_file, PosixPath):
+                self._process_data()
             else:
-                return self._process_step1()
-        elif isinstance(self.__data_file, PosixPath):
-            if '2' in self.__data_file.name:
-                return self._process_step2()
-            elif '3' in self.__data_file.name:
-                if not self.__transition_matrix:
-                    raise NameError('No transition matrix given')
-                return self._process_step3()
-            elif '4' in self.__data_file.name:
-                if not self.__transition_matrix:
-                    raise NameError('No transition matrix given')
-                return Data(self.__data, self.__transition_matrix)
-            else:
-                return self._process_step1()
-        else:
-            raise TypeError('"Data" must be of type str or PosixPath')
+                raise TypeError('"Data" must be of type str or PosixPath')
+            self._markov_matrix()
+
+            prob_file = DATA_PATH.joinpath(self.__file_prefix + '_transition_matrix.csv')
+            data_file = DATA_PATH.joinpath('Cleaned_' + self.__file_prefix + '.csv')
+
+            self.__data.to_csv(data_file)
+            self.__transition_matrix.to_csv(prob_file)
+        return Data(
+            data=self.__data,
+            transition_matrix=self.__transition_matrix,
+            res_bins=self.__res_bin,
+            imb1_bins=self.__imb1_bin,
+            imb2_bins=self.__imb2_bin
+        )
+

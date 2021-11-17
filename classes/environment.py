@@ -12,13 +12,14 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 from .preprocess import Data
+from .two_asset_simulation import TwoAssetSimulation
 
 
 def portfolio_value(current_portfolio, last_portfolio, action, last_state, current_state):
     return sum(current_portfolio)
 
 
-class Env(gym.Env):
+class Env(gym.Env, TwoAssetSimulation):
     """
     :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
     :parameter prob: transition matrix between states. optional if using class data
@@ -109,16 +110,12 @@ class Env(gym.Env):
             start_allocation: List[int] = [1000, -500],
             steps: int = 1000,
     ):
-        if isinstance(data, pd.DataFrame) and isinstance(prob, pd.DataFrame):
-            self.df = data
-            self.prob = prob
-        elif isinstance(data, Data) and not prob:
-            self.df = data.data
-            self.prob = data.transition_matrix
-        else:
-            raise TypeError(
-                '"data" and "prob" must both be DataFrames or "data" must be of type Data and "prob" must be None'
-            )
+        TwoAssetSimulation.__init__(
+            self,
+            data=data,
+            prob=prob,
+            steps=steps
+        )
 
         self.reward_func = reward_func
         self.ite = steps or len(data) // 2 - 1
