@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Union, Optional
+from typing import Optional
 
-import pandas as pd
+import numpy as np
 
 from micro_price_trading.preprocessing import Data
 
@@ -11,8 +11,11 @@ class Simulation(ABC):
     def __init__(
             self,
             data: Data,
-            steps: int = 1_000
+            steps: int = 1_000,
+            seed: Optional[int] = None
     ):
+        self._rng = self._set_seed(seed)
+
         self.df = data.data
         self.prob = data.transition_matrix
         self._res_bins = data.res_bins
@@ -37,3 +40,7 @@ class Simulation(ABC):
     @abstractmethod
     def _reset_simulation(self):
         raise NotImplementedError
+
+    @staticmethod
+    def _set_seed(seed):
+        return np.random.RandomState(seed)

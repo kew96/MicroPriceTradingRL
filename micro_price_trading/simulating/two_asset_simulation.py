@@ -18,7 +18,8 @@ class TwoAssetSimulation(Simulation):
         This function simulates the price movements of two assets from the markov transition matrix.
         It returns a dataframe with three columns: ['state','mid_1','mid_2']
         '''
-        simu = self.df[['state', 'mid1', 'mid2']].sample().values.tolist()
+        idx = self._rng.randint(0, len(self.df))
+        simu = [self.df.iloc[idx][['state', 'mid1', 'mid2']].values.tolist()]
         current = simu[0]
 
         for i in range(self.ite):
@@ -29,7 +30,7 @@ class TwoAssetSimulation(Simulation):
             y_col = y.columns
             y_val = np.array(y)
             y_val = y_val[0]
-            rand = np.random.rand()
+            rand = self._rng.rand()
             j = 0
             while y_val[j] < rand:
                 j += 1
@@ -54,7 +55,8 @@ class TwoAssetSimulation(Simulation):
             simu.append(next_state)
             current = next_state
 
-        simu = pd.DataFrame(simu, columns=['states', 'mid_1', 'mid_2'])
+        simu = pd.DataFrame(simu)
+        simu.columns = ['states', 'mid_1', 'mid_2']
         simu.states = simu.states.replace(self.mapping)
         return simu
 
