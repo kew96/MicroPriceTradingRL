@@ -3,12 +3,11 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 
-
-
 class History(ABC):
 
     @abstractmethod
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        self.readable_action_space = self._generate_readable_action_space(*args, **kwargs)
         raise NotImplementedError
 
     @property
@@ -19,6 +18,11 @@ class History(ABC):
     @property
     @abstractmethod
     def share_history(self) -> np.array:
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _generate_readable_action_space(*args, **kwargs):
         raise NotImplementedError
 
     @abstractmethod

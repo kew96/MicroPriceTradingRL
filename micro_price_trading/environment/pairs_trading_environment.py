@@ -161,7 +161,6 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             1  # Needed for compatability with other packages
         ])
         self.action_space = Discrete(max_position * 2 + 1)
-        self.readable_action_space = self.__generate_readable_action_space()
 
         self._max_episode_steps = 10_000
 
@@ -177,19 +176,6 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         self.hard_stop_penalty = hard_stop_penalty
 
         #
-
-    def __generate_readable_action_space(self):
-        actions = dict()
-        n_actions = self.action_space.n
-
-        for key in range(n_actions):
-            if key < n_actions // 2:
-                actions[key] = f'Short/Long {n_actions // 2 - key}x'
-            elif key > n_actions // 2:
-                actions[key] = f'Long/Short {key - n_actions // 2}x'
-            else:
-                actions[key] = 'Flat'
-        return actions
 
     def step(self, action):
         old_portfolio = self.portfolio.copy()

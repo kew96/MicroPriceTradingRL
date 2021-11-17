@@ -17,6 +17,8 @@ class PairsTradingHistory(History):
             reverse_mapping: Optional[dict] = None,
             max_position: int = 10
     ):
+        History.__init__(self, max_position)
+
         if start_allocation is None:
             start_allocation = [1000, -500]
 
@@ -42,21 +44,7 @@ class PairsTradingHistory(History):
 
         # dict: keys are states, values are lists of actions taken in that state
         self.num_trades = [dict()]
-        # self._action_title = {
-        #     -2: "Long Asset 1 / Short Asset 2",
-        #     -1: "Short Asset 1 / Long Asset 2",
-        #     0: "Hold",
-        #     1: "Tried Long/Short but already Long/Short",
-        #     2: "Tried Short/Long but already Short/Long"
-        # }
-        self._action_title = dict()
-        for i in range(-max_position, max_position + 1):  # TODO: Change to (-max position, max position + 1)
-            if i < 0:
-                self._action_title[i] = f'Short/Long {abs(i)}'
-            elif i > 0:
-                self._action_title[i] = f'Long/Short {abs(i)}'
-            else:
-                self._action_title[i] = 'Flat'
+        self.readable_action_space = self.__generate_readable_action_space(max_position)
 
         # USED FOR RESET ONLY
         self._start_allocation = start_allocation
@@ -91,6 +79,19 @@ class PairsTradingHistory(History):
     @property
     def short_long_indices_history(self):
         return np.array(self._short_long_indices_history)
+
+    @staticmethod
+    def _generate_readable_action_space(max_position):
+        actions = dict()
+
+        for key in range(max_position):
+            if key < max_position // 2:
+                actions[key] = f'Short/Long {max_position // 2 - key}x'
+            elif key > max_position // 2:
+                actions[key] = f'Long/Short {key - max_position // 2}x'
+            else:
+                actions[key] = 'Flat'
+        return actions
 
     @staticmethod
     def _update_portfolio(portfolio, shares, state):
