@@ -7,9 +7,18 @@ class TestTwoAssetSimulation(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        raw = Preprocess('SH_SDS_data.csv')
-        data = raw.process()
-        cls.sim = TwoAssetSimulation(data)
+        cls.raw = Preprocess('SH_SDS_data.csv')
+        cls.data = cls.raw.process()
+
+    def setUp(self) -> None:
+        self.sim = TwoAssetSimulation(self.data, seed=0)
+
+    def test_seed(self):
+        new_sim = TwoAssetSimulation(self.data, seed=0)
+        self.assertEqual(self.sim.states.values.tolist(), new_sim.states.values.tolist())
+        self.sim._reset_simulation()
+        new_sim._reset_simulation()
+        self.assertEqual(self.sim.states.values.tolist(), new_sim.states.values.tolist())
 
     def test_simulation_length(self):
         self.assertEqual(self.sim.states.shape, (1001, 3))
