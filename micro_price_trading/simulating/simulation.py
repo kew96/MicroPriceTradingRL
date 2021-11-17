@@ -10,20 +10,14 @@ class Simulation(ABC):
 
     def __init__(
             self,
-            data: Union[pd.DataFrame, Data],
-            prob: Optional[pd.DataFrame] = None,
+            data: Data,
             steps: int = 1_000
     ):
-        if isinstance(data, pd.DataFrame) and isinstance(prob, pd.DataFrame):
-            self.df = data
-            self.prob = prob
-        elif isinstance(data, Data) and not prob:
-            self.df = data.data
-            self.prob = data.transition_matrix
-        else:
-            raise TypeError(
-                '"data" and "prob" must both be DataFrames or "data" must be of type Data and "prob" must be None'
-            )
+        self.df = data.data
+        self.prob = data.transition_matrix
+        self._res_bins = data.res_bins
+        self._imb1_bins = data.imb1_bins
+        self._imb2_bins = data.imb2_bins
 
         self.ite = steps or len(data) // 2 - 1
 
