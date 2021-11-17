@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-from micro_price_trading.config import DATA_PATH
+from .config import DATA_PATH
 
 
 @dataclass

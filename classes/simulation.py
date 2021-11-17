@@ -19,7 +19,7 @@ class Simulation(ABC):
         self._imb1_bins = data.imb1_bins
         self._imb2_bins = data.imb2_bins
 
-        self.ite = steps or len(data) // 2 - 1
+        self.ite = steps or len(self.df) // 2 - 1
 
         self.mapping = self._get_mapping()
         self._reverse_mapping = {v: k for k, v in self.mapping.items()}
