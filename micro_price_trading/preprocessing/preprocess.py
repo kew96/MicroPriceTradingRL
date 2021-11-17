@@ -139,7 +139,7 @@ class Preprocess:
             self._markov_matrix()
 
             prob_file = DATA_PATH.joinpath(self.__file_prefix + '_transition_matrix.csv')
-            data_file = DATA_PATH.joinpath('Cleaned' + self.__file_prefix + '.csv')
+            data_file = DATA_PATH.joinpath('Cleaned_' + self.__file_prefix + '.csv')
 
             self.__data.to_csv(data_file)
             self.__transition_matrix.to_csv(prob_file)
