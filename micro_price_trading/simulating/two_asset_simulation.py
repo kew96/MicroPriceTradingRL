@@ -58,12 +58,11 @@ class TwoAssetSimulation(Simulation):
         simu.states = simu.states.replace(self.mapping)
         return simu
 
-    @staticmethod
-    def _get_mapping():
+    def _get_mapping(self):
         rows = []
-        for price_relation_d in range(6):
-            for s1_imb_d in range(3):
-                for s2_imb_d in range(3):
+        for price_relation_d in range(self._res_bins):
+            for s1_imb_d in range(self._imb1_bins):
+                for s2_imb_d in range(self._imb2_bins):
                     s1_imb_d, s2_imb_d, price_relation_d = str(s1_imb_d), str(s2_imb_d), str(price_relation_d)
                     rows.append(price_relation_d + s1_imb_d + s2_imb_d)
 
