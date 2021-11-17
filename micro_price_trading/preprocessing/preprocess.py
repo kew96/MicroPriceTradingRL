@@ -17,6 +17,9 @@ from micro_price_trading.config import DATA_PATH
 class Data:
     data: pd.DataFrame
     transition_matrix: pd.DataFrame
+    res_bins: int
+    imb1_bins: int
+    imb2_bins: int
 
 
 class Preprocess:
@@ -142,5 +145,8 @@ class Preprocess:
             self.__transition_matrix.to_csv(prob_file)
         return Data(
             data=self.__data,
-            transition_matrix=self.__transition_matrix
+            transition_matrix=self.__transition_matrix,
+            res_bins=self.__res_bin,
+            imb1_bins=self.__imb1_bin,
+            imb2_bins=self.__imb2_bin
         )
