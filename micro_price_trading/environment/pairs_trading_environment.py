@@ -160,7 +160,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             # self.max_position*2+1  # Current position,
             1  # Needed for compatability with other packages
         ])
-        self.action_space = Discrete(max_position*2+1)
+        self.action_space = Discrete(max_position * 2 + 1)
         self.readable_action_space = self.__generate_readable_action_space()
 
         self._max_episode_steps = 10_000
@@ -170,8 +170,8 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         self.trades = [1]
         self.min_trades = min_trades
         self.lookback = lookback
-        assert (lookback is None or lookback == 0 or lookback > self.no_trade_period,
-                f'lookback={lookback}, no_trade_period={self.no_trade_period}')
+        assert lookback is None or lookback == 0 or lookback > self.no_trade_period, \
+            f'lookback={lookback}, no_trade_period={self.no_trade_period}'
 
         self.threshold = threshold
         self.hard_stop_penalty = hard_stop_penalty
@@ -184,9 +184,9 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
         for key in range(n_actions):
             if key < n_actions // 2:
-                actions[key] = f'Short/Long {n_actions//2-key}x'
+                actions[key] = f'Short/Long {n_actions // 2 - key}x'
             elif key > n_actions // 2:
-                actions[key] = f'Long/Short {key-n_actions//2}x'
+                actions[key] = f'Long/Short {key - n_actions // 2}x'
             else:
                 actions[key] = 'Flat'
         return actions
@@ -214,21 +214,21 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
             start = self.state_index
             self.state_index += 1 + self.no_trade_period
-            stop = min(self.state_index, len(self.states)-1)
+            stop = min(self.state_index, len(self.states) - 1)
             self.current_state = self.states.iloc[stop, :]
 
             self._update_history(
                 portfolio=self.portfolio,
                 shares=self.shares,
                 position=action,
-                steps=stop-start,
+                steps=stop - start,
                 trade_index=start,
                 long_short=action > self.position,
                 period_prices=self.states.iloc[start:stop, 1:]
             )
 
             ######## MOVE ###########
-            self.trades.extend([1]*(stop-start-1))
+            self.trades.extend([1] * (stop - start - 1))
 
             #########################
 
@@ -287,7 +287,6 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         PairsTradingBroker._reset_broker(self, current_state=self.current_state)
 
         self.num_trades.append(dict())
-
         return jnp.asarray([self.current_state.values[0], 0])
 
     def render(self, mode="human"):
