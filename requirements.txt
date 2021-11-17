@@ -1,4 +1,4 @@
-setuptools~=52.0.0.post20210125
+setuptools~=52.0.0
 pandas~=1.1.2
 numpy~=1.19.2
 statsmodels~=0.12.2
