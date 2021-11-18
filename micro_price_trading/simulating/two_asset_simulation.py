@@ -14,10 +14,10 @@ class TwoAssetSimulation(Simulation):
         Simulation.__init__(self, *args, **kwargs)
 
     def _simulate(self, tick=0.01):
-        '''
+        """
         This function simulates the price movements of two assets from the markov transition matrix.
         It returns a dataframe with three columns: ['state','mid_1','mid_2']
-        '''
+        """
         idx = self._rng.randint(0, len(self.df))
         simu = [self.df.iloc[idx][['state', 'mid1', 'mid2']].values.tolist()]
         current = simu[0]
