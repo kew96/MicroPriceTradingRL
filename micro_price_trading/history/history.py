@@ -8,7 +8,6 @@ class History(ABC):
     @abstractmethod
     def __init__(self, *args, **kwargs):
         self.readable_action_space = self._generate_readable_action_space(*args, **kwargs)
-        raise NotImplementedError
 
     @property
     @abstractmethod

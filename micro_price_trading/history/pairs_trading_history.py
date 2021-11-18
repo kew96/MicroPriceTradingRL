@@ -44,7 +44,7 @@ class PairsTradingHistory(History):
 
         # dict: keys are states, values are lists of actions taken in that state
         self.num_trades = [dict()]
-        self.readable_action_space = self.__generate_readable_action_space(max_position)
+        self.readable_action_space = self._generate_readable_action_space(max_position)
 
         # USED FOR RESET ONLY
         self._start_allocation = start_allocation
@@ -83,12 +83,13 @@ class PairsTradingHistory(History):
     @staticmethod
     def _generate_readable_action_space(max_position):
         actions = dict()
+        n_actions = max_position * 2 + 1
 
-        for key in range(max_position):
-            if key < max_position // 2:
-                actions[key] = f'Short/Long {max_position // 2 - key}x'
-            elif key > max_position // 2:
-                actions[key] = f'Long/Short {key - max_position // 2}x'
+        for key in range(n_actions):
+            if key < n_actions // 2:
+                actions[key] = f'Short/Long {n_actions // 2 - key}x'
+            elif key > n_actions // 2:
+                actions[key] = f'Long/Short {key - n_actions // 2}x'
             else:
                 actions[key] = 'Flat'
         return actions
