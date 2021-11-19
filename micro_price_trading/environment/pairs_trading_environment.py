@@ -6,7 +6,6 @@ import gym
 from gym.spaces import Discrete, MultiDiscrete
 
 import numpy as np
-import pandas as pd
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
@@ -15,7 +14,7 @@ from micro_price_trading.broker.pairs_trading_broker import Allocation
 
 from micro_price_trading import PairsTradingBroker, TwoAssetSimulation
 
-from micro_price_trading.config import PAIRS_TRADING_FIGURES
+from micro_price_trading.config import PAIRS_TRADING_FIGURES, TEN_SECOND_DAY
 
 
 def portfolio_value(current_portfolio, last_portfolio, action, last_state, current_state):
@@ -102,8 +101,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
     def __init__(
             self,
-            data: Union[pd.DataFrame, Data],
-            prob: Optional[pd.DataFrame] = None,
+            data: Data,
             no_trade_period: int = 0,
             spread: int = 0,
             fixed_sell_cost: float = 0,
@@ -111,20 +109,21 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             variable_sell_cost: float = 0.0,
             variable_buy_cost: float = 0.0,
             min_trades: int = 1,
-            lookback: int = 5,
-            no_trade_penalty: Union[float, int] = 100,
-            threshold: int = -100,
-            hard_stop_penalty: int = 1000,
+            lookback: Optional[int] = None,
+            no_trade_penalty: Union[float, int] = 0,
+            threshold: int = -np.inf,
+            hard_stop_penalty: int = 0,
             reward_func: Callable = portfolio_value,
             start_allocation: Allocation = None,
             max_position: int = 10,
-            steps: int = 1000,
+            steps: int = TEN_SECOND_DAY,
+            seed: Optional[int] = None
     ):
         TwoAssetSimulation.__init__(
             self,
             data=data,
-            prob=prob,
-            steps=steps
+            steps=steps,
+            seed=seed
         )
 
         if start_allocation is None:
@@ -223,8 +222,10 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             self.state_index += 1
             self.current_state = self.states.iloc[self.state_index, :]
 
+            next_portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
+
             self._update_history(
-                portfolio=self.portfolio,
+                portfolio=next_portfolio,
                 shares=self.shares,
                 position=action,
                 steps=1
@@ -418,11 +419,11 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
                 freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in
                                 sorted(d.keys())]
 
-            for i in range(-self.max_position, self.max_position + 1):
+            for pos, act in zip(range(-self.max_position, self.max_position + 1), range(self.action_space.n)):
                 ax.bar(sorted(d.keys()),
-                       freq_dict[i],
-                       label=self._action_title[i],
-                       bottom=sum([np.array(freq_dict[j]) for j in range(i)])
+                       freq_dict[pos],
+                       label=self.readable_action_space[act],
+                       bottom=sum([np.array(freq_dict[j]) for j in range(pos)])
                        )
 
             ax.legend()
@@ -441,8 +442,8 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
                 collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
                 unique, counts = np.unique(collapsed[state], return_counts=True)
                 plt.figure(figsize=(15, 10))
-                plt.bar([self._action_title[i] for i in unique], counts)
-                plt.xticks([self._action_title[i] for i in unique], fontsize=14)
+                plt.bar([self.readable_action_space[i] for i in unique], counts)
+                plt.xticks([self.readable_action_space[i] for i in unique], fontsize=14)
                 plt.show()
             else:
                 print('Must include state')
