@@ -94,22 +94,22 @@ class PairsTradingBroker(Broker, PairsTradingHistory):
         return new_portfolio, new_shares
 
     def _trading_costs(self, current_shares, target_shares, mid_price):
-        buy_sell = 1 if target_shares > current_shares else -1
-        price = self._get_trade_price(mid_price, buy_sell)
-        quantity = abs(current_shares - target_shares)
+        buy = target_shares > current_shares
+        price = self._get_trade_price(mid_price, buy)
+        quantity = target_shares - current_shares
 
-        if buy_sell == 1:
-            costs = quantity * price * self.variable_buy_cost
+        if buy:
+            costs = quantity * price * (1 + self.variable_buy_cost)
             costs += self.fixed_buy_cost
 
         else:
-            costs = quantity * price * self.variable_sell_cost
-            costs += self.fixed_sell_cost
+            costs = quantity * price * (1 + self.variable_sell_cost)
+            costs -= self.fixed_sell_cost
 
         return costs
 
-    def _get_trade_price(self, mid_price, direction):
-        trade_price = mid_price + direction * self.slippage
+    def _get_trade_price(self, mid_price, buy):
+        trade_price = mid_price + (buy * 2 - 1) * self.slippage
         return trade_price
 
     def _reset_broker(self, current_state):
