@@ -11,6 +11,29 @@ class PairsTradingBroker(Broker, PairsTradingHistory):
     """
     The main class to deal with trading in our specific pairs trading environment. Generally takes care of the actual
     trade and any associated costs, bid/ask spreads, and the like.
+
+    Attributes:
+        fixed_buy_cost: The fixed dollar amount to be charged for every `buy` order
+        fixed_sell_cost: The fixed dollar amount to be charged for every `sell` order
+        variable_buy_cost: The variable amount to be charged for every `buy` order as a percent, i.e. 0.2 means
+            that there is a 20% fee applied to each `buy` transaction
+        variable_sell_cost: The variable amount to be charged for every `sell` order as a percent, i.e. 0.2 means
+            that there is a 20% fee applied to each `sell` transaction
+        slippage: Half the Bid/Ask spread
+        no_trade_period: The number of steps to wait after trading before you can trade again
+        max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
+            Short/Long at any time, at most
+        portfolio: The current portfolio (cash, asset 1, asset 2) in dollars
+        portfolio_value: The current portfolio value
+        shares: The current shares held of asset 1, asset 2
+        position: The current leverage position
+        max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
+            Short/Long at any time, at most
+        num_trades: The number of trades of each type as a list of dictionaries
+        readable_action_space: The human readable format of the actions
+
+    Methods:
+        trade
     """
 
     def __init__(
@@ -41,8 +64,6 @@ class PairsTradingBroker(Broker, PairsTradingHistory):
             no_trade_period: The number of steps to wait after trading before you can trade again
             max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
                 Short/Long at any time, at most
-            reverse_mapping: The reversed mapping from integers to residual imbalance states, used in
-                PairsTradingHistory
         """
         PairsTradingHistory.__init__(
             self,

@@ -14,6 +14,16 @@ class PairsTradingHistory(History):
     The main class for tracking and storing all data for PairsTrading. Updates data as necessary, even skipping multiple
     steps when needed. Generally, a set of arrays and a few functions all related to data storage.
 
+    Attributes:
+        portfolio: The current portfolio (cash, asset 1, asset 2) in dollars
+        portfolio_value: The current portfolio value
+        shares: The current shares held of asset 1, asset 2
+        position: The current leverage position
+        max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
+            Short/Long at any time, at most
+        num_trades: The number of trades of each type as a list of dictionaries
+        readable_action_space: The human readable format of the actions
+
     Properties:
         portfolio_history: An array of the dollar positions (cash, asset 1, asset 2) for each step in all runs
         portfolio_values_history: An array of the dollar value of the portfolio for each step in all runs

@@ -17,74 +17,71 @@ from micro_price_trading import PairsTradingBroker, TwoAssetSimulation
 from micro_price_trading.config import PAIRS_TRADING_FIGURES, TEN_SECOND_DAY
 
 
-def portfolio_value(current_portfolio, last_portfolio, action, last_state, current_state):
-    return sum(current_portfolio)
+def portfolio_value_change(current_portfolio, last_portfolio, action, last_state, current_state):
+    return sum(current_portfolio) - sum(last_portfolio)
 
 
 class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
     """
-    :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
-    :parameter prob: transition matrix between states. optional if using class data
-    :parameter fixed_sell_cost: trading cost associated with selling
-    :parameter fixed_buy_cost: trading cost associated with buying
-    :parameter var_sell_cost: trading cost * num_shares
-    :parameter var_buy_cost: trading cost * num_shares
-    :parameter reward_func: callable that takes current portfolio, previous portfolio, action,
-                            previous state and current state and returns the reward
-    :parameter start_allocation: how much $ starting short/long each position.
-                                 Defines the amount you trade for each position
-    :parameter steps: the number of 10 second steps created for each simulated data stream.
-                     Note: each row in attribute data is a 10 second step
+    The main pairs trading environment that conforms to OpenAI Gym's format. This handles all input and output actions/
+    spaces along with resetting the required parameters.
 
     Attributes:
-        :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class Data)
-        :parameter prob: transition matrix between states. optional if using class data
-        :parameter fixed_sell_cost: trading cost associated with selling
-        :parameter fixed_buy_cost: trading cost associated with buying
-        :parameter var_sell_cost: trading cost * num_shares
-        :parameter var_buy_cost: trading cost * num_shares
-        :parameter reward_func: callable that takes current portfolio, action,
-                                previous state and current state and returns the reward
-        :parameter start_allocation: how much $ starting short/long each position.
-                                     Defines the amount you trade for each position
-        :parameter steps: the number of 10 second steps created for each simulated data stream.
-                         Note: each row in attribute data is a 10 second step
+        data: A Data object that contains cleaned Pandas DataFrames ready for simulation
+        action_space: The Discrete action space of possible actions. Is of size 2 * max_position + 1 (center around 0
+            and allow for -max_position to max_position)
+        observation_space: The MultiDiscrete observation space with size equal to the number of unique residual
+            imbalance states
+        no_trade_period: The number of steps to wait after trading before you can trade again
+        slippage: Half the Bid/Ask spread
+        fixed_buy_cost: The fixed dollar amount to be charged for every `buy` order
+        fixed_sell_cost: The fixed dollar amount to be charged for every `sell` order
+        variable_buy_cost: The variable amount to be charged for every `buy` order as a percent, i.e. 0.2 means
+            that there is a 20% fee applied to each `buy` transaction
+        variable_sell_cost: The variable amount to be charged for every `sell` order as a percent, i.e. 0.2 means
+            that there is a 20% fee applied to each `sell` transaction
+        min_trades: The minimum amount of trades desired over a given period, can't be set to zero to ignore
+        lookback: The lookback period for the minimum amount of desired trades, set to None to ignore
+        no_trade_penalty: The penalty to impose if the agent has not traded the minimum amount of times over the
+            lookback period in dollars
+        threshold: The stop loss threshold, when the total portfolio value decreases beyond this, the iteration is over
+            and a negative, specified reward is given, set to negative infinity to ignore
+        hard_stop_penalty: The dollar penalty to impose if we end the iteration early due to stop loss requirements
+        reward_func: callable that takes current portfolio, previous portfolio, action, previous state and current state
+            and returns the reward
+        current_state: The initial state to start the Broker at
+        start_allocation: The initial allocation in dollars to both assets, defines how much to trade
+        max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
+            Short/Long at any time, at most
+        num_trades: The number of trades of each type as a list of dictionaries
+        readable_action_space: The human readable format of the actions
+        portfolio: The current portfolio (cash, asset 1, asset 2) in dollars
+        portfolio_value: The current portfolio value
+        shares: The current shares held of asset 1, asset 2
+        position: The current leverage position
+        max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
+            Short/Long at any time, at most
+        num_trades: The number of trades of each type as a list of dictionaries
+        readable_action_space: The human readable format of the actions
+        steps: the number of steps created for each simulated data stream.
+            Note: each row in attribute data is a 10 second step
 
-        ite: steps or length of data
-        mapping: set to self.get_mapping
-        __reverse_mapping: flips the keys and values from self.mapping
-        states: all of the states from _simulation
-        observation_space: all potential states that the agent can experience
-        action_space: all potential actions that the agent can perform
-        _max_episode_steps: Required by OpenAI Gym
-        state_index: the index of the current state that the environment is in
-        last_state: an array of the previous state the environment was in
-        current_state: an array of the current state the environment is in
-        terminal: a boolean flag if we are in the terminal state
-        portfolio: the current portfolio allocation where the first entry is the cash position
-        current_portfolio_history: the portfolio allocation over all steps
-        shares: the current number of shares held
-        current_share_history: the history of the number of shares held over time
-        num_trades: a list of dictionaries containing the number of trades made in respective states
-        last_share_history: the complete history of the number of shares held over time
-        last_portfolio_history: the complete portfolio allocation over all steps and iterations
+    Properties:
+        portfolio_history: An array of the dollar positions (cash, asset 1, asset 2) for each step in all runs
+        portfolio_values_history: An array of the dollar value of the portfolio for each step in all runs
+        share_history: An array of amount of shares of each asset for each step in all runs
+        positions_history: The amount of leverage for each step in all runs
+        trade_indices_history: An array of all trade indices for each step in all runs
+        long_short_indices_history: An array of all long/short trade indices for each step in all runs
+        short_long_indices_history: An array of all short/long trade indices for each step in all runs
 
     Methods:
-        collapse_num_trades_dict
-        plot_state_frequency
-        summarize_decisions
-        summarize_state_decisions
-        _simulation
         step
         trade
-        update_num_trades
-        update_portfolio
-        liquidate
-        trading_costs
         plot
         reset
         render
-
+        copy_env
     """
 
     # 1 TODO: Add inventory to state space
@@ -104,16 +101,16 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             data: Data,
             no_trade_period: int = 0,
             spread: int = 0,
-            fixed_sell_cost: float = 0,
             fixed_buy_cost: float = 0,
-            variable_sell_cost: float = 0.0,
+            fixed_sell_cost: float = 0,
             variable_buy_cost: float = 0.0,
+            variable_sell_cost: float = 0.0,
             min_trades: int = 1,
             lookback: Optional[int] = None,
             no_trade_penalty: Union[float, int] = 0,
             threshold: int = -np.inf,
             hard_stop_penalty: int = 0,
-            reward_func: Callable = portfolio_value,
+            reward_func: Callable = portfolio_value_change,
             start_allocation: Allocation = None,
             max_position: int = 10,
             steps: int = TEN_SECOND_DAY,
@@ -177,6 +174,17 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         #
 
     def step(self, action):
+        """
+        The step function as outlined by OpenAI Gym. Used to take an action and return the necessary information for
+        an RL agent to learn.
+
+        Args:
+            action: The integer or array-like action
+
+        Returns: A tuple with the next state, the reward from the previous action, a terminal flag to decide if the
+            environment is in the terminal state (True/False), and a dictionary with debugging information
+
+        """
         old_portfolio = self.portfolio.copy()
 
         action -= self.max_position
@@ -265,6 +273,12 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             )
 
     def reset(self):
+        """
+        Performs all resets necessary to begin another learning iteration
+
+        Returns: The state for the beginning of the next iteration
+
+        """
         TwoAssetSimulation._reset_simulation(self)
 
         self.state_index = 0
@@ -304,6 +318,21 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             num_env_to_analyze=1,
             state=None
     ):
+        """
+        The general function for plotting and visualizing the data. Options include the following:
+            `portfolio_history`
+            `position_history`
+            `asset_paths`
+            `summarize_decisions`
+            `summarize_state_decisions`
+            `state_frequency`
+            `learning_progress`
+
+        Args:
+            data: A string specifying the data to visualize
+            num_env_to_analyze: Only used in some options, combines the most recent iterations
+            state: Only used in some options, the specific residual imbalance state to visualize
+        """
         options = [
             'portfolio_history',
             'position_history',
@@ -509,6 +538,13 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         return result
 
     def copy_env(self):
+        """
+        A helper function to make a deep copy of the current environment to immediately replicate an existing
+            environment without having any further connection.
+
+        Returns: A new PairsTradingEnvironment with the same parameters
+
+        """
         new_env = self.__deepcopy__(dict())
         new_env.reset()
         return new_env
