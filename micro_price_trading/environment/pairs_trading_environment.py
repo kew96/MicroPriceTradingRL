@@ -85,16 +85,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
     """
 
     # 1 TODO: Add inventory to state space
-    # 2 TODO: Action space for buying/selling/holding
-    #   2.1 TODO: Hard stop conditions (run out of money)
-    # RERUN
-    # 3 TODO: Reward function (purchase price - mid-price - baseline)
-    #   3.1 TODO: -e^(-gamma*x) utility function
-    # RERUN
-    # 4 TODO: Replay buffer in environment
-    # RERUN
-    # 5 TODO: stable_baselines3
-    # 6 TODO: make asset names dynamic or change naming convention
+    # 2 TODO: stable_baselines3
 
     def __init__(
             self,
@@ -294,21 +285,21 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         return None
 
     @staticmethod
-    def __valid_entry(entry):
+    def _valid_entry(entry):
         if len(entry) < 2:
             return False
         else:
             return True
 
-    def __get_valid_entry(self, entries, start, stop=0):
+    def _get_valid_entry(self, entries, start, stop=0):
         if not stop:
-            if self.__valid_entry(entries[-start]):
+            if self._valid_entry(entries[-start]):
                 return [entries]
             else:
-                return self.__get_valid_entry(self, entries, start + 1, stop)
+                return self._get_valid_entry(self, entries, start + 1, stop)
         else:
             good_entries = [
-                entry for entry in entries[start:stop] if self.__valid_entry(entry)
+                entry for entry in entries[start:stop] if self._valid_entry(entry)
             ]
             return good_entries
 
