@@ -431,8 +431,6 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         elif data == 'summarize_decisions':
             """
             This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
-            :param num_env_to_analyze: See function collapse_num_trades
-            :return: plot
             """
             collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
             states = []
@@ -462,10 +460,6 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         elif data == 'summarize_state_decisions':
             """
             This plots the distribution of actions in a given state.
-
-            :param num_env_to_analyze: See function collapse_num_trades
-            :param state: the state of which we plot the actions made
-            :return: plot
             """
             if state:
                 collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
@@ -479,9 +473,8 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
         elif data == 'state_frequency':
             """
-                    Function to plot number of observations in each state. Will show distribution of states
-                    :return: plot
-                    """
+            Function to plot number of observations in each state. Will show distribution of states
+            """
             collapsed = self._collapse_num_trades_dict(2)
             states = []
             freq = []
