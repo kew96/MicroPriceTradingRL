@@ -6,7 +6,7 @@ import pandas as pd
 from micro_price_trading import PairsTradingHistory, TwoAssetSimulation, Preprocess
 
 
-class MyTestCase(unittest.TestCase):
+class TestPairsTradingHistory(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:

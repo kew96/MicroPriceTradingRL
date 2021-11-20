@@ -7,7 +7,7 @@ from micro_price_trading import Preprocess, TwoAssetSimulation
 from micro_price_trading.broker import PairsTradingBroker
 
 
-class MyTestCase(unittest.TestCase):
+class TestPairsTradingBroker(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
