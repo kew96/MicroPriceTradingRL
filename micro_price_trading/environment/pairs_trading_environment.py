@@ -284,25 +284,6 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
     def render(self, mode="human"):
         return None
 
-    @staticmethod
-    def _valid_entry(entry):
-        if len(entry) < 2:
-            return False
-        else:
-            return True
-
-    def _get_valid_entry(self, entries, start, stop=0):
-        if not stop:
-            if self._valid_entry(entries[-start]):
-                return [entries]
-            else:
-                return self._get_valid_entry(self, entries, start + 1, stop)
-        else:
-            good_entries = [
-                entry for entry in entries[start:stop] if self._valid_entry(entry)
-            ]
-            return good_entries
-
     def plot(
             self,
             data='portfolio_history',
