@@ -76,9 +76,8 @@ class PairsTradingBroker(Broker, PairsTradingHistory):
         )
 
         trading_cost = cost_asset1 + cost_asset2
-        asset_cost = target_asset1 - current_portfolio[1] + target_asset2 - current_portfolio[2]
 
-        new_cash = current_portfolio[0] - trading_cost - asset_cost
+        new_cash = current_portfolio[0] - trading_cost
 
         new_portfolio = [
             new_cash,
@@ -104,7 +103,7 @@ class PairsTradingBroker(Broker, PairsTradingHistory):
 
         else:
             costs = quantity * price * (1 + self.variable_sell_cost)
-            costs -= self.fixed_sell_cost
+            costs += self.fixed_sell_cost
 
         return costs
 
