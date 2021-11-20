@@ -1,5 +1,8 @@
 import unittest
 
+import pandas as pd
+from numpy import allclose
+
 from micro_price_trading import Preprocess, TwoAssetSimulation
 from micro_price_trading.broker import PairsTradingBroker
 
@@ -25,7 +28,7 @@ class MyTestCase(unittest.TestCase):
         )
 
     def test_slippage(self):
-        self.assertEqual(self.broker.slippage, 0.005)
+        self.assertAlmostEqual(self.broker.slippage, 0.005)
 
     def test_get_trade_price(self):
         res1 = self.broker._get_trade_price(10, True)
@@ -40,6 +43,24 @@ class MyTestCase(unittest.TestCase):
 
         self.assertAlmostEqual(res1, 75.1375)
         self.assertAlmostEqual(res2, -100.15)
+
+    def test_trade(self):
+        action1 = 1
+        dollar_amount1 = [1000, -500]
+        current_portfolio1 = [0, 0, 0]
+        current_state1 = pd.Series({'states': 10, 'mid_1': 5, 'mid_2': 10})
+        res11, res12 = self.broker.trade(action1, dollar_amount1, current_portfolio1, current_state1)
+
+        action2 = -1
+        dollar_amount2 = [1000, -500]
+        current_portfolio2 = [1000, 1000, -500]
+        current_state2 = pd.Series({'states': 10, 'mid_1': 10, 'mid_2': 5})
+        res21, res22 = self.broker.trade(action2, dollar_amount2, current_portfolio2, current_state2)
+
+        self.assertTrue(allclose(res11, [-502.3, 1000, -500]))
+        self.assertTrue(allclose(res12, [200, -50]))
+        self.assertTrue(allclose(res21, [3496.2, -1000, 500]))
+        self.assertTrue(allclose(res22, [-100, 100]))
 
 
 if __name__ == '__main__':
