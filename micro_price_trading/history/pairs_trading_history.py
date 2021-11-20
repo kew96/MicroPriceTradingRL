@@ -10,6 +10,20 @@ Allocation = Optional[List[Union[float, int]]]
 
 class PairsTradingHistory(History):
 
+    """
+    The main class for tracking and storing all data for PairsTrading. Updates data as necessary, even skipping multiple
+    steps when needed. Generally, a set of arrays and a few functions all related to data storage.
+
+    Properties:
+        portfolio_history: An array of the dollar positions (cash, asset 1, asset 2) for each step in all runs
+        portfolio_values_history: An array of the dollar value of the portfolio for each step in all runs
+        share_history: An array of amount of shares of each asset for each step in all runs
+        positions_history: The amount of leverage for each step in all runs
+        trade_indices_history: An array of all trade indices for each step in all runs
+        long_short_indices_history: An array of all long/short trade indices for each step in all runs
+        short_long_indices_history: An array of all short/long trade indices for each step in all runs
+    """
+
     def __init__(
             self,
             current_state: pd.Series,
@@ -17,6 +31,15 @@ class PairsTradingHistory(History):
             reverse_mapping: Optional[dict] = None,
             max_position: int = 10
     ):
+        """
+
+        Args:
+            current_state: current_state: The initial state to start the History at
+            start_allocation: The initial allocation in dollars to both assets
+            reverse_mapping: The reversed mapping from integers to residual imbalance states
+            max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
+                Short/Long at any time, at most
+        """
         History.__init__(self, max_position)
 
         if start_allocation is None:
@@ -82,6 +105,16 @@ class PairsTradingHistory(History):
 
     @staticmethod
     def _generate_readable_action_space(max_position):
+        """
+        Creates a dictionary from integer actions to human readable positions
+
+        Args:
+            max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
+                Short/Long at any time, at most
+
+        Returns: A dictionary mapping of int -> string of integer actions to string representations
+
+        """
         actions = dict()
         n_actions = max_position * 2 + 1
 
@@ -96,9 +129,19 @@ class PairsTradingHistory(History):
 
     @staticmethod
     def _update_portfolio(portfolio, shares, state):
+        """
+        A function to 'step' the portfolio through time as market prices evolve.
+        Args:
+            portfolio: A list of the current portfolio dollar amounts, [cash, asset 1, asset 2]
+            shares: A list of the current shares in each asset
+            state: A Pandas Series of the current residual imbalance state, the mid-price of asset 1 and asset 2
+
+        Returns: A new portfolio list with the same cash value and updated position values
+
+        """
         return [
             portfolio[0],
-            shares[0]*state[1],
+            shares[0]*state[1],  # TODO: Include bid/ask spread. Most likely move to Broker
             shares[1]*state[2]
         ]
 
@@ -112,13 +155,26 @@ class PairsTradingHistory(History):
             long_short: Optional[bool] = None,
             period_prices: Optional[pd.DataFrame] = None
     ):
+        """
+        Helper method for updating all history tracking with single or multiple time steps as necessary
+
+        Args:
+            portfolio: A list of the current portfolio dollar amounts, [cash, asset 1, asset 2]
+            shares: A list of the current shares in each asset
+            position: The current leverage position
+            steps: The number of steps to take
+            trade_index: If trading, specify which step
+            long_short: A boolean if we are going Long/Short
+            period_prices: A Pandas DataFrame with the first and second columns as the asset prices,
+                `len(period_prices)` should equal `steps`. Should include the current prices as the first row.
+        """
         if steps == 1:
             self._portfolio_history[-1].append(portfolio)
             self._portfolio_values_history[-1].append(sum(portfolio))
             self._share_history[-1].append(shares)
             self._positions_history[-1].append(position)
         else:
-            amounts = period_prices * shares
+            amounts = period_prices * shares  # TODO: Take into account Bid/Ask spread
             portfolios = [
                 [portfolio[0], asset1, asset2] for asset1, asset2 in amounts.itertuples(index=False)
             ]
