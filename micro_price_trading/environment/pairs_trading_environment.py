@@ -191,8 +191,33 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
             self._update_num_trades(action, self.current_state)
 
+        self.logical_update(action)
+
         self.last_state = self.current_state
 
+        self.terminal = self.state_index >= len(self.states) - 1
+
+        self.portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
+
+        reward = self.get_reward(old_portfolio, action)
+
+        if sum(self.portfolio) <= self.threshold:
+            self.terminal = True
+
+        return (
+            jnp.asarray([self.current_state.values[0], 0]),
+            reward,
+            self.terminal,
+            {}
+        )
+
+    def logical_update(self, action):
+        """
+        Passes the correct parameters to the History's update function based on the action and other current details
+
+        Args:
+            action: The action we take during this step
+        """
         if self._traded:
             self._traded = False
 
@@ -235,33 +260,26 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
             #####################
 
-        self.terminal = self.state_index >= len(self.states) - 1
+    def get_reward(self, old_portfolio, action):
+        """
+        Calculates reward based on current state and action information.
 
-        self.portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
+        Args:
+            old_portfolio: The previous portfolio prior to performing any actions in the current state
+            action: The action we take during this step
+
+        Returns: A float of the reward that we earn over this time step
+
+        """
+        if sum(self.portfolio) <= self.threshold:
+            return -self.hard_stop_penalty
 
         if self.lookback and self.lookback < len(self.trades) and sum(self.trades[-self.lookback:]) < self.min_trades:
             penalty = self.no_trade_penalty
         else:
             penalty = 0
 
-        self.terminal = self.state_index >= len(self.states) - 1
-
-        if sum(self.portfolio) <= self.threshold:
-            self.terminal = True
-
-            return (
-                jnp.asarray([self.current_state.values[0], 0]),
-                -self.hard_stop_penalty,
-                self.terminal,
-                {}
-            )
-        else:
-            return (
-                jnp.asarray([self.current_state.values[0], 0]),
-                self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state) - penalty,
-                self.terminal,
-                {}
-            )
+        return self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state) - penalty
 
     def reset(self):
         """
