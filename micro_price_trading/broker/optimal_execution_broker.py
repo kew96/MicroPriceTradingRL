@@ -68,8 +68,8 @@ class OptimalExecutionBroker(Broker):
 
         new_portfolio = [
             new_cash,
-            target_asset1,
-            target_asset2
+            target_shares_asset1*current_state[1],
+            target_shares_asset2 * current_state[2]
         ]
 
         new_shares = [
