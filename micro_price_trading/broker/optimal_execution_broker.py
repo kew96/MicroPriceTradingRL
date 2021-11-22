@@ -1,5 +1,7 @@
 from .broker import Broker
 
+from micro_price_trading.history.optimal_execution_history import OptimalExecutionHistory, Allocation
+
 
 class OptimalExecutionBroker(Broker):
 
