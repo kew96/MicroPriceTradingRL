@@ -177,6 +177,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
         """
         old_portfolio = self.portfolio.copy()
+        self.last_state = self.current_state
 
         action -= self.max_position
 
@@ -192,8 +193,6 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             self._update_num_trades(action, self.current_state)
 
         self.logical_update(action)
-
-        self.last_state = self.current_state
 
         self.terminal = self.state_index >= len(self.states) - 1
 
@@ -237,7 +236,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             )
 
             ######## MOVE ###########
-            self.trades.extend([1] * (stop - start - 1))
+            self.trades.extend([1] + [0] * (stop - start - 1))
 
             #########################
 
