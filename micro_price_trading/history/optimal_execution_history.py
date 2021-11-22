@@ -1,3 +1,4 @@
+from abc import ABC
 from typing import List, Optional, Union
 
 import numpy as np
@@ -10,15 +11,13 @@ Allocation = Optional[List[Union[float, int]]]
 
 class OptimalExecutionHistory(History):
 
-    def __init__(
-            self,
-            current_state: pd.Series,
-            start_allocation: Allocation = None,
-            reverse_mapping: Optional[dict] = None,
-            max_position: int = 10
-    ):
+    def __init__(self, current_state: pd.Series, start_allocation: Allocation = None,
+                 reverse_mapping: Optional[dict] = None, max_position: int = 10, *args, **kwargs):
+
+        History.__init__(self)
+
         if start_allocation is None:
-            start_allocation = [1000, -500]
+            start_allocation = [0, 0]
 
         self.portfolio = [-sum(start_allocation), *start_allocation]
         self._portfolio_history = [[self.portfolio]]
@@ -165,7 +164,7 @@ class OptimalExecutionHistory(History):
         num_trades_last = self.num_trades[-1].get(reverse_mapped_state, []) + [action]
         self.num_trades[-1][reverse_mapped_state] = num_trades_last
 
-    def _reset_env_history(self, current_state):
+    def _reset_history(self, current_state):
         self.portfolio = [-sum(self._start_allocation), *self._start_allocation]
         self._portfolio_history.append([self.portfolio])
 

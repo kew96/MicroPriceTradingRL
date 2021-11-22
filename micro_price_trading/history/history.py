@@ -4,7 +4,8 @@ import numpy as np
 
 
 class History(ABC):
-
+    ###### THIS WAS AFFECTING OPT EXECUTION CODE #######
+    '''
     @abstractmethod
     def __init__(self, *args, **kwargs):
         self.readable_action_space = self._generate_readable_action_space(*args, **kwargs)
@@ -31,3 +32,4 @@ class History(ABC):
     @abstractmethod
     def _reset_history(self, *args, **kwargs):
         raise NotImplementedError
+'''

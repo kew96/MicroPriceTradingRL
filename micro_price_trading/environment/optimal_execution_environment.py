@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from micro_price_trading.preprocessing.preprocess import Data
 from micro_price_trading import TwoAssetSimulation, OptimalExecutionHistory, OptimalExecutionBroker
 
-from micro_price_trading.config import TEN_SECOND_DAY
+from micro_price_trading.config import TWENTY_SECOND_DAY
 from micro_price_trading.broker.optimal_execution_broker import Allocation
 
 import math
@@ -30,23 +30,17 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionHistory, O
     def __init__(
             self,
             data: Data,
-            no_trade_period: int = 0,
             spread: int = 0,
             fixed_buy_cost: float = 0,
             fixed_sell_cost: float = 0,
             variable_buy_cost: float = 0.0,
             variable_sell_cost: float = 0.0,
-            min_trades: int = 1,
-            lookback: Optional[int] = None,
-            no_trade_penalty: Union[float, int] = 0,
-            threshold: int = -np.inf,
-            hard_stop_penalty: int = 0,
             reward_func: Callable = first_price_reward,
             start_allocation: Allocation = None,
-            max_position: int = 10,
-            steps: int = TEN_SECOND_DAY,
+            steps: int = TWENTY_SECOND_DAY,
             seed: Optional[int] = None,
-            units_of_risk: int = 10000,
+            units_of_risk: int = 100,
+            must_trade_interval: int = 5,
     ):
         TwoAssetSimulation.__init__(
             self,
@@ -56,7 +50,9 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionHistory, O
         )
 
         if start_allocation is None:
-            start_allocation = [1000, -500]
+            self._start_allocation = [0, 0]
+        else:
+            self._start_allocation = start_allocation
 
         self.state_index = 0
         self.last_state = None
@@ -70,15 +66,21 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionHistory, O
             variable_buy_cost=variable_buy_cost,
             variable_sell_cost=variable_sell_cost,
             spread=spread,
+            current_state=self.current_state
         )
 
         # RL/OpenAI Gym requirements
         self.reward_func = reward_func
 
+        self.steps = steps
+        self.units_of_risk = units_of_risk
+        self.step_number = 0
+        self.must_trade_interval = must_trade_interval
+
         self.observation_space = MultiDiscrete([
             len(self.mapping),  # Set of residual imbalance states
-            steps,  # Number of steps left till end of episode
-            units_of_risk,  # Number of units of risk left to purchase
+            self.must_trade_interval,  # Number of steps left till end of must_trade_period
+            self.units_of_risk,  # Number of units of risk left to purchase
             # self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
             # self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value,
             # self.ite,  # Number of trading periods in run,
@@ -87,9 +89,8 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionHistory, O
         ])
 
         self.action_space = MultiDiscrete([units_of_risk, units_of_risk/2])
-        self.steps_remaining = steps
-        self.risk_remaining = units_of_risk
 
+        self.risk_remaining = self.units_of_risk
         self.prices_at_start = self.states.iloc[0, :]
 
         self.trades = [1]
@@ -110,7 +111,24 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionHistory, O
             old_portfolio = self.portfolio.copy()
             self.last_state = self.current_state
 
-            if action[0] != 0 or action[1] != 0:  # if we traded at all, update portfolio
+            if self.step_number in np.arange(self.must_trade_interval, self.steps, self.must_trade_interval):
+                # buy all remaining units of risk using TBF?
+                action = [math.ceil(self.remaining_risk/self.current_state[0]), 0]
+                # update portfolio, shares and num_trades
+                self.portfolio, self.shares = self.trade(
+                    action,
+                    self._start_allocation,
+                    old_portfolio,
+                    self.current_state
+                )
+                self._update_num_trades(action, self.current_state)
+                self.logical_update(action)
+
+                self.step_number += 1
+                self.risk_remaining = self.units_of_risk
+                self.prices_at_start = self.states.iloc[self.step_number, :]
+
+            elif action[0] != 0 or action[1] != 0:  # if we traded at all, update portfolio
 
                 self.portfolio, self.shares = self.trade(
                     action,
@@ -120,30 +138,23 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionHistory, O
                 )
 
                 self._update_num_trades(action, self.current_state)
+                self.logical_update(action)
 
-            self.logical_update(action)
+                self.step_number += 1
+                self.risk_remaining = max(0, self.risk_remaining - action[0] + action[1] * 2)
+            else:  # we don't trade and aren't forced to either
+                self.step_number += 1
 
-            # update remaining risk and remaining steps
-            self.risk_remaining -= action[0] + action[1]*2
-            self.steps_remaining -= 1
-
-            if self.steps_remaining == 0:  # buy all remaining units of risk using TBF?
-                action = [math.ceil(self.remaining_risk/self.current_state[0]), 0]
-                self.portfolio, self.shares = self.trade(
-                    action,
-                    self._start_allocation,
-                    old_portfolio,
-                    self.current_state
-                )
-
-            self.terminal = (self.risk_remaining <= 0)
+            self.terminal = (self.step_number >= self.steps)
 
             self.portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
 
             reward = self.get_reward(old_portfolio, action)
 
             return (
-                jnp.asarray([self.current_state.values[0], self.steps_remaining, self.risk_remaining]),
+                jnp.asarray([self.current_state.values[0],
+                             self.step_number%self.must_trade_interval,
+                             self.risk_remaining]),
                 reward,
                 self.terminal,
                 {}
@@ -201,13 +212,13 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionHistory, O
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
-        PairsTradingBroker._reset_broker(self, current_state=self.current_state)
+        self.risk_remaining = self.units_of_risk
+        self.step_number = 0
+
+        OptimalExecutionBroker._reset_broker(self, current_state=self.current_state)
 
         self.num_trades.append(dict())
-        return jnp.asarray([self.current_state.values[0], 0])
-
-
-
+        return jnp.asarray([self.current_state.values[0], 0, self.units_of_risk])
 
     def __copy__(self):
         cls = self.__class__

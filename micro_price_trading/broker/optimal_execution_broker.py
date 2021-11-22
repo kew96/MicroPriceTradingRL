@@ -9,12 +9,18 @@ class OptimalExecutionBroker(Broker):
 
     def __init__(
             self,
+            current_state: pd.Series,
+            start_allocation: Allocation = None,
             fixed_buy_cost: float = 0.0,
             fixed_sell_cost: float = 0.0,
             variable_buy_cost: float = 0.0,
             variable_sell_cost: float = 0.0,
-            spread: float = 0.0,
+            spread: Union[float, int] = 0,
+            no_trade_period: int = 0,
+            max_position: int = 10,
+            reverse_mapping: Optional[dict] = None
     ):
+
         self.fixed_buy_cost = fixed_buy_cost
         self.fixed_sell_cost = fixed_sell_cost
 
@@ -22,6 +28,15 @@ class OptimalExecutionBroker(Broker):
         self.variable_sell_cost = variable_sell_cost
 
         self.slippage = spread / 2
+
+        OptimalExecutionHistory.__init__(
+            self,
+            current_state=current_state,
+            start_allocation=start_allocation,
+            reverse_mapping=reverse_mapping,
+            max_position=max_position
+        )
+
 
     def trade(
             self,
@@ -122,10 +137,8 @@ class OptimalExecutionBroker(Broker):
         return trade_price
 
     def _reset_broker(self, current_state):
-        OptimalExecutionHistory._reset_history(
-            self,
-            current_state=current_state
-        )
+
+        OptimalExecutionHistory._reset_history(self, current_state=current_state)
 
         self._traded = False
 

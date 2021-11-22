@@ -50,7 +50,7 @@ class PairsTradingHistory(History):
             max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
                 Short/Long at any time, at most
         """
-        History.__init__(self, max_position)
+        History.__init__(self)
 
         if start_allocation is None:
             start_allocation = [1000, -500]
