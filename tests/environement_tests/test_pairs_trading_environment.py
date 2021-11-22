@@ -55,6 +55,32 @@ class TestPairsTradingEnvironment(unittest.TestCase):
         self.assertAlmostEqual(no_trade_reward, -700)
         self.assertAlmostEqual(trade_reward, 300)
 
+    def test_logical_update(self):
+        self.env._traded = False
+        self.env.logical_update(1)
+
+        self.assertEqual(self.env.state_index, 1)
+        self.assertEqual(
+            self.env.current_state.values.tolist(),
+            self.env.states.iloc[1].values.tolist(),
+            'Current state should increase by one when not trading'
+        )
+        self.assertEqual(self.env.trades, [1, 0])
+
+        self.env._traded = True
+        self.env.logical_update(2)
+
+        self.assertEqual(self.env.state_index, 7)
+        self.assertEqual(
+            self.env.current_state.values.tolist(),
+            self.env.states.iloc[7].values.tolist(),
+            'Current state should skip the next five states, 2-6, when not trading'
+        )
+        self.assertEqual(self.env.trades, [1, 0, 1, 0, 0, 0, 0, 0])
+
+    def test_step(self):
+        pass
+
 
 if __name__ == '__main__':
     unittest.main()
