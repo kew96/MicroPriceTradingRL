@@ -516,7 +516,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         result = cls.__new__(cls)
         memo[id(self)] = result
         for k, v in self.__dict__.items():
-            setattr(result, k, deepcopy(v, memo))
+            setattr(result, k, deepcopy(v))
         return result
 
     def copy_env(self):

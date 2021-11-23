@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from micro_price_trading.preprocessing.preprocess import Data
 from micro_price_trading import TwoAssetSimulation, OptimalExecutionHistory, OptimalExecutionBroker
 
-from micro_price_trading.config import TWENTY_SECOND_DAY
+from micro_price_trading.config import PAIRS_TRADING_FIGURES, TWENTY_SECOND_DAY
 from micro_price_trading.broker.optimal_execution_broker import Allocation
 
 import math
@@ -226,6 +226,214 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionBroker, gy
 
         self.num_trades.append(dict())
         return jnp.asarray([self.current_state.values[0], 0, self.units_of_risk])
+    def plot(
+            self,
+            data='portfolio_history',
+            num_env_to_analyze=1,
+            state=None
+    ):
+        """
+        The general function for plotting and visualizing the data. Options include the following:
+            `portfolio_history`
+            `position_history`
+            `asset_paths`
+            `summarize_decisions`
+            `summarize_state_decisions`
+            `state_frequency`
+            `learning_progress`
+
+        Args:
+            data: A string specifying the data to visualize
+            num_env_to_analyze: Only used in some options, combines the most recent iterations
+            state: Only used in some options, the specific residual imbalance state to visualize
+        """
+        options = [
+            'portfolio_history',
+            'position_history',
+            'asset_paths',
+            'summarize_decisions',
+            'summarize_state_decisions',
+            'state_frequency',
+            'learning_progress'
+        ]
+
+        if data == 'help':
+            print(options)
+            return
+        elif data not in options:
+            raise LookupError(f'{data} is not an option. Type "help" for more info.')
+
+        if not PAIRS_TRADING_FIGURES.exists():
+            PAIRS_TRADING_FIGURES.mkdir()
+
+        if data == 'portfolio_history':
+            fig, axs = plt.subplots(figsize=(15, 10))
+
+            axs.plot(range(len(self._portfolio_values_history[-2])), self._portfolio_values_history[-2], label='Total',
+                     c='k', alpha=0.7)
+            axs.set_ylabel('Total Value', fontsize=14)
+
+            portfolio_values = np.array(self._portfolio_values_history[-2])
+
+            axs.scatter(
+                self._long_short_indices_history[-2],
+                portfolio_values[self._long_short_indices_history[-2]],
+                s=120,
+                c='g',
+                marker='^',
+                label='Long/Short'
+            )
+            axs.scatter(
+                self._short_long_indices_history[-2],
+                portfolio_values[self._short_long_indices_history[-2]],
+                s=120,
+                c='r',
+                marker='v',
+                label='Short/Long'
+            )
+
+            fig.legend(fontsize=14)
+            fig.suptitle('Portfolio Value', fontsize=14)
+
+            fig.savefig(PAIRS_TRADING_FIGURES.joinpath('portfolio_history.png'), format='png')
+
+        elif data == 'position_history':
+            fig, axs = plt.subplots(figsize=(15, 10))
+
+            idxs = self._trade_indices_history[-2]
+            positions = np.array(self._positions_history[-2])
+
+            axs.plot(idxs, positions[idxs], 'b-', label='Asset 1')
+            axs.set_ylabel('Asset 1 Position', fontsize=14)
+
+            fig.legend(fontsize=14)
+            fig.suptitle('Position', fontsize=14)
+
+            fig.savefig(PAIRS_TRADING_FIGURES.joinpath('position_history.png'), format='png')
+
+        elif data == 'asset_paths':
+            fig, axs = plt.subplots(2, figsize=(15, 13))
+            axs[0].plot(self, self._last_states.iloc[:, 1], c='k', alpha=0.7)
+            axs[0].set_title('Asset 1')
+
+            axs[1].plot(self._trade_indices_history[-2], self._last_states.iloc[:, 2], c='k', alpha=0.7)
+            axs[1].set_title('Asset 2')
+
+            for idx, ax in enumerate(axs):
+                ax.scatter(
+                    self._long_short_indices_history[-2],
+                    self._last_states.iloc[self._long_short_indices_history[-2], idx + 1],
+                    s=120,
+                    c='g',
+                    marker='^',
+                    label='Long/Short'
+                )
+                ax.scatter(
+                    self._short_long_indices_history[-2],
+                    self._last_states.iloc[self._short_long_indices_history[-2], idx + 1],
+                    s=120,
+                    c='r',
+                    marker='v',
+                    label='Short/Long'
+                )
+
+            axs[0].legend(fontsize=14)
+            fig.suptitle('Asset Paths', fontsize=14)
+
+            fig.savefig(PAIRS_TRADING_FIGURES.joinpath('asset_paths.png'), format='png')
+
+        '''
+        
+        elif data == 'summarize_decisions':
+            """
+            This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
+            """
+            collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
+            states = []
+            d = {}  # keys are states, values are (unique, counts)
+
+            fig, ax = plt.subplots(figsize=(15, 10))
+            for key in sorted(collapsed):
+                states.append(key)
+                unique, counts = np.unique(collapsed[key], return_counts=True)
+                d[key] = (unique, counts)
+            freq_dict = {}
+            for i in range(-self.max_position, self.max_position + 1):
+                freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in
+                                sorted(d.keys())]
+
+            for pos, act in zip(range(-self.max_position, self.max_position + 1), range(self.action_space.n)):
+                ax.bar(sorted(d.keys()),
+                       freq_dict[pos],
+                       label=self.readable_action_space[act],
+                       bottom=sum([np.array(freq_dict[j]) for j in range(pos)])
+                       )
+
+            ax.legend()
+            plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
+            plt.show()
+
+        
+        elif data == 'summarize_state_decisions':
+            """
+            This plots the distribution of actions in a given state.
+            """
+            if state:
+                collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
+                unique, counts = np.unique(collapsed[state], return_counts=True)
+                plt.figure(figsize=(15, 10))
+                plt.bar([self.readable_action_space[i] for i in unique], counts)
+                plt.xticks([self.readable_action_space[i] for i in unique], fontsize=14)
+                plt.show()
+            else:
+                print('Must include state')
+                
+                '''
+
+        if data == 'state_frequency':
+            """
+            Function to plot number of observations in each state. Will show distribution of states
+            """
+            collapsed = self._collapse_num_trades_dict(2)
+            states = []
+            freq = []
+
+            fig, ax = plt.subplots(figsize=(15, 10))
+
+            for key in sorted(collapsed):
+                states.append(key)
+                freq.append(len(collapsed[key]))
+
+            ax.bar(states, freq)
+            plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
+            plt.show()
+
+        elif data == 'learning_progress':
+            values = [entry[-1] for entry in self.portfolio_values_history]
+            # Define the figure
+            f, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+            f.suptitle(" Grand Avg " + str(np.round(np.mean(values), 3)))
+            ax[0].plot(values, label='Value per run')
+            ax[0].axhline(.08, c='red', ls='--', label='goal')
+            ax[0].set_xlabel('Episodes ')
+            ax[0].set_ylabel('Reward')
+            x = range(len(values))
+            ax[0].legend()
+            # Calculate the trend
+            try:
+                z = np.polyfit(x, values, 1)
+                p = np.poly1d(z)
+                ax[0].plot(x, p(x), "--", label='trend')
+            except:
+                print('')
+
+            # Plot the histogram of results
+            ax[1].hist(values[-100:])
+            ax[1].axvline(.08, c='red', label='Value')
+            ax[1].set_xlabel('Scores per Last 100 Episodes')
+            ax[1].set_ylabel('Frequency')
+            ax[1].legend()
+            plt.show()
 
     def __copy__(self):
         cls = self.__class__
@@ -238,7 +446,7 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionBroker, gy
         result = cls.__new__(cls)
         memo[id(self)] = result
         for k, v in self.__dict__.items():
-            setattr(result, k, deepcopy(v, memo))
+            setattr(result, k, deepcopy(v))
         return result
 
     def copy_env(self):
