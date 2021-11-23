@@ -25,7 +25,7 @@ def first_price_reward(action, prices_at_start, current_state):
     return sum((prices_at_start - current_state)*np.array(action))
 
 
-class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionHistory, OptimalExecutionBroker, gym.Env, ABC):
+class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionBroker, gym.Env):
 
     def __init__(
             self,
@@ -66,7 +66,8 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionHistory, O
             variable_buy_cost=variable_buy_cost,
             variable_sell_cost=variable_sell_cost,
             spread=spread,
-            current_state=self.current_state
+            current_state=self.current_state,
+            reverse_mapping=self._reverse_mapping
         )
 
         # RL/OpenAI Gym requirements
@@ -88,116 +89,122 @@ class OptimalExecutionEnvironment(TwoAssetSimulation, OptimalExecutionHistory, O
             # 1 Needed for compatability with other packages
         ])
 
-        self.action_space = MultiDiscrete([units_of_risk, units_of_risk/2])
+        ## TODO self.action_space = MultiDiscrete([self.units_of_risk, self.units_of_risk/2])
+        self.action_space = Discrete(2*self.units_of_risk)
 
         self.risk_remaining = self.units_of_risk
         self.prices_at_start = self.states.iloc[0, :]
 
         self.trades = [1]
+        self.shares = [0, 0]
+        self._max_episode_steps = 10_000
 
-        def step(self, action):
-            """
-            The step function as outlined by OpenAI Gym. Used to take an action and return the necessary information for
-            an RL agent to learn.
+    def step(self, action):
+        """
+        The step function as outlined by OpenAI Gym. Used to take an action and return the necessary information for
+        an RL agent to learn.
 
-            Args:
-                action: The integer or array-like action
+        Args:
+            action: The integer or array-like action
 
-            Returns: A tuple with the next state, the reward from the previous action, a terminal flag to decide if the
-                environment is in the terminal state (True/False), and a dictionary with debugging information
+        Returns: A tuple with the next state, the reward from the previous action, a terminal flag to decide if the
+            environment is in the terminal state (True/False), and a dictionary with debugging information
 
-            """
+        """
 
-            old_portfolio = self.portfolio.copy()
-            self.last_state = self.current_state
+        old_portfolio = self.portfolio.copy()
+        self.last_state = self.current_state
 
-            if self.step_number in np.arange(self.must_trade_interval, self.steps, self.must_trade_interval):
-                # buy all remaining units of risk using TBF?
-                action = [math.ceil(self.remaining_risk/self.current_state[0]), 0]
-                # update portfolio, shares and num_trades
-                self.portfolio, self.shares = self.trade(
-                    action,
-                    self._start_allocation,
-                    old_portfolio,
-                    self.current_state
-                )
-                self._update_num_trades(action, self.current_state)
-                self.logical_update(action)
+        ## TODO below should not be necessary, need MultiDiscrete action_space
+        action -= self.units_of_risk
+        purchase_actions = [np.abs(action) if action < 0 else 0, action if action > 0 else 0]
+        ## TODO
 
-                self.step_number += 1
-                self.risk_remaining = self.units_of_risk
-                self.prices_at_start = self.states.iloc[self.step_number, :]
+        if self.step_number in np.arange(self.must_trade_interval, self.steps, self.must_trade_interval):
+            # buy all remaining units of risk using TBF?
+            purchase_actions = [math.ceil(self.risk_remaining/self.current_state[0]), 0]
+            # update portfolio, shares and num_trades
+            self.portfolio, self.shares = self.trade(
+                purchase_actions,
+                old_portfolio,
+                self.current_state
+            )
+            self._update_num_trades(action, self.current_state)
+            self.logical_update(action)
 
-            elif action[0] != 0 or action[1] != 0:  # if we traded at all, update portfolio
+            self.step_number += 1
+            self.risk_remaining = self.units_of_risk
+            self.prices_at_start = self.states.iloc[self.step_number, :]
 
-                self.portfolio, self.shares = self.trade(
-                    action,
-                    self._start_allocation,
-                    old_portfolio,
-                    self.current_state
-                )
+        elif purchase_actions[0] != 0 or purchase_actions[1] != 0:  # if we traded at all, update portfolio
 
-                self._update_num_trades(action, self.current_state)
-                self.logical_update(action)
-
-                self.step_number += 1
-                self.risk_remaining = max(0, self.risk_remaining - action[0] + action[1] * 2)
-            else:  # we don't trade and aren't forced to either
-                self.step_number += 1
-
-            self.terminal = (self.step_number >= self.steps)
-
-            self.portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
-
-            reward = self.get_reward(old_portfolio, action)
-
-            return (
-                jnp.asarray([self.current_state.values[0],
-                             self.step_number%self.must_trade_interval,
-                             self.risk_remaining]),
-                reward,
-                self.terminal,
-                {}
+            self.portfolio, self.shares = self.trade(
+                purchase_actions,
+                old_portfolio,
+                self.current_state
             )
 
-        def logical_update(self, action):
-            """
-            Passes the correct parameters to the History's update function based on the action and other current details
+            self._update_num_trades(action, self.current_state)
+            self.logical_update(action)
 
-            Args:
-                action: The action we take during this step
-            """
+            self.step_number += 1
+            self.risk_remaining = max(0, self.risk_remaining - purchase_actions[0] + purchase_actions[1] * 2)
+        else:  # we don't trade and aren't forced to either
+            self.step_number += 1
 
-            self.state_index += 1
-            self.current_state = self.states.iloc[self.state_index, :]
+        self.terminal = (self.step_number >= self.steps)
 
-            next_portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
+        self.portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
 
-            self._update_history(
-                portfolio=next_portfolio,
-                shares=self.shares,
-                position=action,
-                steps=1
-            )
+        reward = self.get_reward(old_portfolio, action)
 
-            ####### MOVE ########
-            self.trades.append(0)
+        return (
+            jnp.asarray([self.current_state.values[0],
+                         self.step_number%self.must_trade_interval,
+                         self.risk_remaining]),
+            reward,
+            self.terminal,
+            {}
+        )
 
-            #####################
+    def logical_update(self, action):
+        """
+        Passes the correct parameters to the History's update function based on the action and other current details
 
-        def get_reward(self, old_portfolio, action):
-            """
-            Calculates reward based on current state and action information.
+        Args:
+            action: The action we take during this step
+        """
 
-            Args:
-                old_portfolio: The previous portfolio prior to performing any actions in the current state
-                action: The action we take during this step
+        self.state_index += 1
+        self.current_state = self.states.iloc[self.state_index, :]
 
-            Returns: A float of the reward that we earn over this time step
+        next_portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
 
-            """
+        self._update_histories(
+            portfolio=next_portfolio,
+            shares=self.shares,
+            position=action,
+            steps=1
+        )
 
-            return self.reward_func(action, self.prices_at_start, self.current_state)
+        ####### MOVE ########
+        self.trades.append(0)
+
+        #####################
+
+    def get_reward(self, old_portfolio, action):
+        """
+        Calculates reward based on current state and action information.
+
+        Args:
+            old_portfolio: The previous portfolio prior to performing any actions in the current state
+            action: The action we take during this step
+
+        Returns: A float of the reward that we earn over this time step
+
+        """
+
+        return self.reward_func(action, self.prices_at_start, self.current_state)
 
     def reset(self):
         """

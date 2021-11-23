@@ -293,7 +293,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
-        PairsTradingBroker._reset_broker(self, current_state=self.current_state)
+        PairsTrading._reset_broker(self, current_state=self.current_state)
 
         self.num_trades.append(dict())
         return jnp.asarray([self.current_state.values[0], 0])

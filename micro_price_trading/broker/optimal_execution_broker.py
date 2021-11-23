@@ -5,7 +5,7 @@ import pandas as pd
 from micro_price_trading.history.optimal_execution_history import OptimalExecutionHistory, Allocation
 
 
-class OptimalExecutionBroker(Broker):
+class OptimalExecutionBroker(Broker, OptimalExecutionHistory):
 
     def __init__(
             self,
@@ -37,10 +37,9 @@ class OptimalExecutionBroker(Broker):
             max_position=max_position
         )
 
-
     def trade(
             self,
-            action: int,
+            action,  # : int,
             current_portfolio: List[float],
             current_state: pd.Series
     ):
@@ -138,7 +137,7 @@ class OptimalExecutionBroker(Broker):
 
     def _reset_broker(self, current_state):
 
-        OptimalExecutionHistory._reset_history(self, current_state=current_state)
+        OptimalExecutionHistory._reset_env_history(self, current_state=current_state)
 
         self._traded = False
 
