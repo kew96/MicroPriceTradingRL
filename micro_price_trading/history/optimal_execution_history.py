@@ -5,9 +5,7 @@ from typing import Tuple, Optional, Union
 import numpy as np
 import pandas as pd
 
-from .history import History
-
-Allocation = Optional[Tuple[Union[float, int]]]
+from .history import History, Allocation
 
 
 @dataclass

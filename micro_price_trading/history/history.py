@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
+from typing import Optional, Tuple, Union
 
 import numpy as np
+
+Allocation = Optional[Tuple[Union[float, int]]]
 
 
 class History(ABC):
