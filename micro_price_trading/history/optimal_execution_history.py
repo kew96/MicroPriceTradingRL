@@ -14,6 +14,7 @@ class Trade:
     shares: int
     risk: int
     price: float
+    cost: float
 
 
 @dataclass
