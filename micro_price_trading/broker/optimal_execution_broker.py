@@ -40,6 +40,8 @@ class OptimalExecutionBroker(Broker, ABC):
 
         """
 
+        assert action != 0, 'Must have a non-zero action in order to trade'
+
         asset = self._determine_asset(action)
 
         trading_cost = self.buy(shares=abs(action), price=current_state.iloc[asset])
@@ -47,7 +49,7 @@ class OptimalExecutionBroker(Broker, ABC):
         if penalty_trade:
             trading_cost *= self.trade_penalty
 
-        Trade(
+        trade = Trade(
             asset=asset,
             shares=abs(action),
             risk=self._get_risk(abs(action), asset),
@@ -56,17 +58,18 @@ class OptimalExecutionBroker(Broker, ABC):
             penalty=penalty_trade
         )
 
-        return Trade
+        return trade
 
     @staticmethod
     def _determine_asset(action: int):
         """
-        Determines which asset to buy based on the action
+        Determines which asset to buy based on the action, a negative action implies buying the first asset and a
+        positive implies the second asset
 
         Args:
             action: The overall action of the trade
 
-        Returns: The index of the current state of the asset being bought
+        Returns: The asset number (the first asset is 1, second 2)
 
         """
         if action < 0:
