@@ -27,6 +27,7 @@ class Simulation(ABC):
         self.mapping = self._get_mapping()
         self._reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.states = self._simulate()
+        self.current_state = self.states.iloc[0, :]
 
     @abstractmethod
     def _simulate(self):
