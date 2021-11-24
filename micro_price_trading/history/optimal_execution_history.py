@@ -61,6 +61,19 @@ class OptimalExecutionHistory(History, ABC):
         self._portfolios = [[self.current_portfolio]]
         self.__reverse_mapping = reverse_mapping
 
+    def _generate_readable_action_space(*args, **kwargs):
+        raise NotImplementedError
+
+    def _update_history(self, *args, **kwargs):
+        raise NotImplementedError
+
+    @property
+    def portfolio_history(self) -> np.array:
+        return np.array(self._portfolios)
+
+    def share_history(self) -> np.array:
+        raise NotImplementedError
+
     def _reset_history(self, start_state):
 
         self.current_portfolio = Portfolio(
