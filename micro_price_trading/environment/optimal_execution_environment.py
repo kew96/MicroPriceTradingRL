@@ -18,8 +18,8 @@ from micro_price_trading import TwoAssetSimulation, OptimalExecutionBroker, Opti
 from micro_price_trading.config import PAIRS_TRADING_FIGURES, TWENTY_SECOND_DAY
 
 
-def first_price_reward(action, prices_at_start, current_state):
-    return sum((prices_at_start - current_state)*np.array(action))
+def first_price_reward(current_portfolio, prices_at_start, current_state):
+    return sum((prices_at_start - current_state) * np.array(current_portfolio.shares))
 
 
 class OptimalExecutionEnvironment(
@@ -155,57 +155,28 @@ class OptimalExecutionEnvironment(
         return (
             jnp.asarray([self.current_state.values[0],
                          self.must_trade_interval - self.state_index % self.must_trade_interval,
-                         self.risk_remaining]),
+                         remaining_risk]),
             self.get_reward(old_portfolio, action),
             self.terminal,
             {}
         )
 
-    def logical_update(self, trade=None):
+    def logical_update(self, trade=None, penalty_trade=None):
         """
         Passes the correct parameters to the History's update function based on the action and other current details
 
         Args:
             trade: A trade if we traded during this period
+            penalty_trade: A trade if we had a penalty trade this period
         """
-
-        if trade:
-            if trade.asset == 1:
-                new_portfolio = Portfolio(
-                    time=self.state_index,
-                    cash=self.current_portfolio.cash - trade.cost,
-                    shares=(self.current_portfolio[0]+trade.shares, *self.current_portfolio),
-                    prices=tuple(self.current_state.iloc[1:]),
-                    total_risk=self.current_portfolio.total_risk + trade.risk,
-                    res_imbalance_state=self.__reverse_mapping[self.current_state[0]],
-                    trade=trade
-                )
-            else:
-                new_portfolio = Portfolio(
-                    time=self.state_index,
-                    cash=self.current_portfolio.cash - trade.cost,
-                    shares=(self.current_portfolio[:1], self.current_portfolio[1]+trade.shares),
-                    prices=tuple(self.current_state.iloc[1:]),
-                    total_risk=self.current_portfolio.total_risk + trade.risk,
-                    res_imbalance_state=self.__reverse_mapping[self.current_state[0]],
-                    trade=trade
-                )
-        else:
-            new_portfolio = Portfolio(
-                time=self.state_index,
-                cash=self.current_portfolio.cash,
-                shares=self.current_portfolio.shares,
-                prices=tuple(self.current_state.iloc[1:]),
-                total_risk=self.current_portfolio.total_risk,
-                res_imbalance_state=self.__reverse_mapping[self.current_state[0]],
-                trade=None
-            )
-
-        self.current_portfolio = new_portfolio
-        self._portfolios[-1].append(new_portfolio)
 
         self.state_index += 1
         self.current_state = self.states.iloc[self.state_index, :]
+
+        new_portfolio = self._update_portfolio(trade, penalty_trade)
+
+        self.current_portfolio = new_portfolio
+        self._portfolios[-1].append(new_portfolio)
 
     def get_reward(self, old_portfolio, action):
         """
@@ -243,7 +214,7 @@ class OptimalExecutionEnvironment(
 
         return shares_to_buy if asset_to_buy == 2 else -shares_to_buy
 
-    def _update_portfolio(self, current_portfolio, trade, penalty_trade):
+    def _update_portfolio(self, trade, penalty_trade):
         """
         Updates the current portfolio with any trades performed over this time period
 
@@ -255,9 +226,9 @@ class OptimalExecutionEnvironment(
         Returns:
 
         """
-        new_cash = current_portfolio.cash
-        new_shares = current_portfolio.shares
-        new_risk = current_portfolio.total_risk
+        new_cash = self.current_portfolio.cash
+        new_shares = self.current_portfolio.shares
+        new_risk = self.current_portfolio.total_risk
 
         if trade:
             new_cash -= trade.cost
@@ -275,7 +246,7 @@ class OptimalExecutionEnvironment(
                 new_shares = new_shares[0], new_shares[1] + penalty_trade.shares
 
         new_portfolio = Portfolio(
-            self.state_index,
+            self.state_index+1,
             cash=new_cash,
             shares=new_shares,
             prices=tuple(self.current_state.iloc[1:]),
@@ -297,12 +268,11 @@ class OptimalExecutionEnvironment(
         TwoAssetSimulation._reset_simulation(self)
 
         self.state_index = 0
-        self.current_state = self.states.iloc[self.state_index, :]
         self.terminal = False
 
         OptimalExecutionBroker._reset_broker(self)
+        OptimalExecutionHistory._reset_history(self, self.current_state)
 
-        self.num_trades.append(dict())
         return jnp.asarray([self.current_state.values[0], 0, self.end_units_risk])
 
     def plot(

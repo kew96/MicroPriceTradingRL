@@ -62,7 +62,7 @@ class OptimalExecutionHistory(History, ABC):
         self.__reverse_mapping = reverse_mapping
 
     def _generate_readable_action_space(*args, **kwargs):
-        raise NotImplementedError
+        return None
 
     def _update_history(self, *args, **kwargs):
         raise NotImplementedError

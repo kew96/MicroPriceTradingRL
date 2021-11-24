@@ -74,7 +74,7 @@ class OptimalExecutionBroker(Broker, ABC):
         """
         if action < 0:
             return 1
-        elif action > 1:
+        elif action > 0:
             return 2
 
     def _get_risk(self, shares, asset):
