@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Tuple
+from typing import Tuple, Union
 
 import pandas as pd
 
@@ -11,15 +11,17 @@ class OptimalExecutionBroker(Broker, ABC):
 
     def __init__(
             self,
-            risk_weights: Tuple[int, int]
+            risk_weights: Tuple[int, int],
+            trade_penalty: Union[int, float]
     ):
         self.risk_weights = risk_weights
+        self.trade_penalty = trade_penalty
 
     def trade(
             self,
             action: int,
-            current_portfolio: Portfolio,
-            current_state: pd.Series
+            current_state: pd.Series,
+            penalty_trade: bool
     ):
         """
         The main function for trading. Takes in the required information and returns the new positions and dollar
@@ -31,6 +33,8 @@ class OptimalExecutionBroker(Broker, ABC):
                 dollar amounts in each asset
             current_state: A Pandas Series with the current residual imbalance state, followed by the mid price of
                 asset 1 and asset 2 respectively
+            penalty_trade: A bool representing if this trade is to be penalized, this flag handles a trade if we have
+                not reached our target units of risk
 
         Returns: A Trade with all trade information
 
@@ -40,12 +44,16 @@ class OptimalExecutionBroker(Broker, ABC):
 
         trading_cost = self.buy(shares=abs(action), price=current_state.iloc[asset])
 
+        if penalty_trade:
+            trading_cost *= self.trade_penalty
+
         Trade(
             asset=asset,
             shares=abs(action),
             risk=self._get_risk(abs(action), asset),
             price=current_state.iloc[asset],
-            cost=trading_cost
+            cost=trading_cost,
+            penalty=penalty_trade
         )
 
         return Trade

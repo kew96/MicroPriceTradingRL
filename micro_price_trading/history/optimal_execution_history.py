@@ -15,6 +15,7 @@ class Trade:
     risk: int
     price: float
     cost: float
+    penalty: bool = False
 
 
 @dataclass
@@ -26,6 +27,7 @@ class Portfolio:
     total_risk: int
     res_imbalance_state: str
     trade: Optional[Trade] = None
+    penalty_trade: Optional[Trade] = None
 
 
 class OptimalExecutionHistory(History, ABC):
