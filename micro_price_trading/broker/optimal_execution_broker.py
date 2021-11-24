@@ -94,5 +94,4 @@ class OptimalExecutionBroker(Broker, ABC):
         return shares * price
 
     def _reset_broker(self):
-
-        self._traded = False
+        pass
