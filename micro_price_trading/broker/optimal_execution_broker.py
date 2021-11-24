@@ -29,14 +29,14 @@ class OptimalExecutionBroker(Broker, ABC):
 
         Args:
             action: The number of shares to buy and which asset to buy
-            current_portfolio: A list containing the current portfolio with the amount of cash first, followed by the
-                dollar amounts in each asset
             current_state: A Pandas Series with the current residual imbalance state, followed by the mid price of
                 asset 1 and asset 2 respectively
             penalty_trade: A bool representing if this trade is to be penalized, this flag handles a trade if we have
                 not reached our target units of risk
 
         Returns: A Trade with all trade information
+
+        Raises: An AssertionError if `action == 0`
 
         """
 
@@ -102,7 +102,7 @@ class OptimalExecutionBroker(Broker, ABC):
         Returns: A float of the purchase price
 
         """
-        return shares * price
+        return float(shares * price)
 
     def _reset_broker(self):
         pass
