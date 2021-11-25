@@ -18,16 +18,22 @@ from micro_price_trading import TwoAssetSimulation, OptimalExecutionBroker, Opti
 from micro_price_trading.config import PAIRS_TRADING_FIGURES, TWENTY_SECOND_DAY
 
 
-def first_price_reward(current_portfolio, prices_at_start, current_state):
-    return sum((prices_at_start - current_state) * np.array(current_portfolio.shares))
+def first_price_reward(current_portfolio, prices_at_start):
+    diff = 0
+    if current_portfolio.trade:
+        diff += (prices_at_start.iloc[current_portfolio.trade.asset-1] * current_portfolio.trade.shares
+                 - current_portfolio.trade.cost)
+    if current_portfolio.penalty_trade:
+        diff += (prices_at_start.iloc[current_portfolio.penalty_trade.asset-1] * current_portfolio.penalty_trade.shares
+                 - current_portfolio.penalty_trade.cost)
+    return diff
 
 
 class OptimalExecutionEnvironment(
     TwoAssetSimulation,
     OptimalExecutionBroker,
     OptimalExecutionHistory,
-    gym.Env,
-    ABC
+    gym.Env
 ):
 
     def __init__(
@@ -93,7 +99,7 @@ class OptimalExecutionEnvironment(
         # TODO self.action_space = MultiDiscrete([self.units_of_risk, self.units_of_risk/2])
         self.action_space = Discrete(2 * self.end_units_risk + 1)
 
-        self.prices_at_start = self.states.iloc[0, :]
+        self.prices_at_start = self.states.iloc[0, 1:]
 
     def step(self, action: Union[List, int]):
         """
@@ -136,7 +142,6 @@ class OptimalExecutionEnvironment(
                 penalty_trade = None
 
             self.current_portfolio = self._update_portfolio(
-                current_portfolio=self.current_portfolio,
                 trade=trade,
                 penalty_trade=penalty_trade
             )
@@ -145,7 +150,6 @@ class OptimalExecutionEnvironment(
             self.prices_at_start = self.states.iloc[self.state_index, :]
         else:
             self.current_portfolio = self._update_portfolio(
-                current_portfolio=self.current_portfolio,
                 trade=trade,
                 penalty_trade=None
             )
@@ -156,7 +160,7 @@ class OptimalExecutionEnvironment(
             jnp.asarray([self.current_state.values[0],
                          self.must_trade_interval - self.state_index % self.must_trade_interval,
                          remaining_risk]),
-            self.get_reward(old_portfolio, action),
+            self.get_reward(),
             self.terminal,
             {}
         )
@@ -178,19 +182,15 @@ class OptimalExecutionEnvironment(
         self.current_portfolio = new_portfolio
         self._portfolios[-1].append(new_portfolio)
 
-    def get_reward(self, old_portfolio, action):
+    def get_reward(self):
         """
         Calculates reward based on current state and action information.
-
-        Args:
-            old_portfolio: The previous portfolio prior to performing any actions in the current state
-            action: The action we take during this step
 
         Returns: A float of the reward that we earn over this time step
 
         """
 
-        return self.reward_func(action, self.prices_at_start, self.current_state)
+        return self.reward_func(self.current_portfolio, self.prices_at_start)
 
     def _calculate_period_risk_targets(self):
         """
@@ -219,9 +219,8 @@ class OptimalExecutionEnvironment(
         Updates the current portfolio with any trades performed over this time period
 
         Args:
-            current_portfolio:
-            trade:
-            penalty_trade:
+            trade: Any trade at this time step
+            penalty_trade: A penalty trade at this time step
 
         Returns:
 
@@ -246,7 +245,7 @@ class OptimalExecutionEnvironment(
                 new_shares = new_shares[0], new_shares[1] + penalty_trade.shares
 
         new_portfolio = Portfolio(
-            self.state_index+1,
+            self.state_index,
             cash=new_cash,
             shares=new_shares,
             prices=tuple(self.current_state.iloc[1:]),
