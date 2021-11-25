@@ -22,7 +22,7 @@ class TestOptimalExecutionEnvironment(unittest.TestCase):
             start_allocation=(0, 0),
             steps=1000,
             end_units_risk=100,
-            must_trade_interval=10,
+            must_trade_interval=100,
             seed=0
         )
 
@@ -97,8 +97,43 @@ class TestOptimalExecutionEnvironment(unittest.TestCase):
         self.assertEqual(self.env._update_portfolio(None, self.trade3), self.expected_portfolio3)
         self.assertEqual(self.env._update_portfolio(self.trade2, self.trade3), self.expected_portfolio4)
 
+    def test_calculate_period_risk_targets(self):
+        self.assertEqual(len(self.env._period_risk), 10)
+        self.assertEqual(self.env._period_risk, {
+            100: 90,
+            200: 80,
+            300: 70,
+            400: 60,
+            500: 50,
+            600: 40,
+            700: 30,
+            800: 20,
+            900: 10,
+            1000: 0,
+        })
+
+    def test_get_penalty_action(self):
+        self.env.risk_weights = (1, 2)
+        self.assertEqual(self.env._get_penalty_action(50, 40), 5)
+
+        self.env.risk_weights = (2, 1)
+        self.assertEqual(self.env._get_penalty_action(50, 40), -5)
+
     def test_logical_update(self):
-        self.assertTrue(False)
+        for *args, portfolio in (
+                (None, None, self.expected_portfolio1),
+                (self.trade2, None, self.expected_portfolio2),
+                (None, self.trade3, self.expected_portfolio3),
+                (self.trade2, self.trade3, self.expected_portfolio4)
+        ):
+            self.setUp()
+            self.env.logical_update(*args)
+
+            self.assertEqual(self.env.state_index, 1, f'args={args}')
+            self.assertEqual(
+                self.env.current_state.values.tolist(), self.env.states.iloc[1].values.tolist(), f'args={args}'
+            )
+            self.assertEqual(self.env.current_portfolio, portfolio, f'args={args}')
 
 
 if __name__ == '__main__':

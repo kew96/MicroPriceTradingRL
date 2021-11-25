@@ -85,7 +85,7 @@ class OptimalExecutionEnvironment(
         self.end_units_risk = end_units_risk
         self.must_trade_interval = must_trade_interval
         self._max_episode_steps = 10_000
-        self._end_of_periods = np.arange(self.must_trade_interval, self.steps, self.must_trade_interval).tolist()
+        self._end_of_periods = np.arange(self.must_trade_interval, self.steps+1, self.must_trade_interval).tolist()
         self._period_risk = self._calculate_period_risk_targets()
 
         self.observation_space = MultiDiscrete([
@@ -210,7 +210,7 @@ class OptimalExecutionEnvironment(
 
         risk_to_buy = total_remaining - period_target
         shares_to_buy = risk_to_buy // max(self.risk_weights)
-        asset_to_buy = np.argmax(self.risk_weights)
+        asset_to_buy = np.argmax(self.risk_weights) + 1
 
         return shares_to_buy if asset_to_buy == 2 else -shares_to_buy
 
