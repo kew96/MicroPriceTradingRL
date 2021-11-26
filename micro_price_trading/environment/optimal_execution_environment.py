@@ -10,23 +10,13 @@ import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
+from micro_price_trading.utils import first_price_reward
 from micro_price_trading.history.history import Allocation
 from micro_price_trading.preprocessing.preprocess import Data
 from micro_price_trading.history.optimal_execution_history import Portfolio
 from micro_price_trading import TwoAssetSimulation, OptimalExecutionBroker, OptimalExecutionHistory
 
 from micro_price_trading.config import PAIRS_TRADING_FIGURES, TWENTY_SECOND_DAY
-
-
-def first_price_reward(current_portfolio, prices_at_start, target_risk):
-    diff = 0
-    if current_portfolio.trade:
-        diff += (prices_at_start[current_portfolio.trade.asset - 1] * current_portfolio.trade.shares
-                 - current_portfolio.trade.cost)
-    if current_portfolio.penalty_trade:
-        diff += (prices_at_start[current_portfolio.penalty_trade.asset - 1] * current_portfolio.penalty_trade.shares
-                 - current_portfolio.penalty_trade.cost)
-    return diff
 
 
 class OptimalExecutionEnvironment(
