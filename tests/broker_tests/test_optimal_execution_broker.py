@@ -36,7 +36,7 @@ class TestOptimalExecutionBroker(unittest.TestCase):
     def test_trade(self):
         # Fix the current prices for easier testing
         current_state = self.sim.current_state.copy()
-        current_state.iloc[1:] = [10, 20]
+        current_state[1:] = [10, 20]
 
         expected_trade1 = Trade(
             asset=1,

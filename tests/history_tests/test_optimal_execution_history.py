@@ -26,16 +26,14 @@ class TestOptimalExecutionHistory(unittest.TestCase):
             time=0,
             cash=0,
             shares=(0, 0),
-            prices=tuple(self.sim.current_state.iloc[1:]),
+            prices=tuple(self.sim.current_state[1:]),
             total_risk=0,
-            res_imbalance_state=self.sim._reverse_mapping[self.sim.current_state.iloc[0]],
+            res_imbalance_state=self.sim._reverse_mapping[self.sim.current_state[0]],
             trade=None,
             penalty_trade=None
         )
 
         self.assertEqual(self.history.current_portfolio, expected_portfolio)
-
-
 
 
 if __name__ == '__main__':

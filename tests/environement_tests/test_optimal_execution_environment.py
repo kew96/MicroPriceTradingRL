@@ -30,9 +30,9 @@ class TestOptimalExecutionEnvironment(unittest.TestCase):
             time=1,
             cash=0,
             shares=(0, 0),
-            prices=tuple(self.env.states.iloc[1, 1:]),
+            prices=tuple(self.env.states[1, 1:]),
             total_risk=0,
-            res_imbalance_state=self.env._reverse_mapping.get(self.env.states.iloc[1, 0], None),
+            res_imbalance_state=self.env._reverse_mapping.get(self.env.states[1, 0], None),
             trade=None,
             penalty_trade=None
         )
@@ -40,11 +40,11 @@ class TestOptimalExecutionEnvironment(unittest.TestCase):
         self.trade2 = self.env.trade(-1, self.env.current_state, False)
         self.expected_portfolio2 = Portfolio(
             time=1,
-            cash=-self.env.current_state.iloc[1],
+            cash=-self.env.current_state[1],
             shares=(1, 0),
-            prices=tuple(self.env.states.iloc[1, 1:]),
+            prices=tuple(self.env.states[1, 1:]),
             total_risk=1,
-            res_imbalance_state=self.env._reverse_mapping.get(self.env.states.iloc[1, 0], None),
+            res_imbalance_state=self.env._reverse_mapping.get(self.env.states[1, 0], None),
             trade=self.trade2,
             penalty_trade=None
         )
@@ -52,22 +52,22 @@ class TestOptimalExecutionEnvironment(unittest.TestCase):
         self.trade3 = self.env.trade(1, self.env.current_state, True)
         self.expected_portfolio3 = Portfolio(
             time=1,
-            cash=-self.env.current_state.iloc[2] * 1.1,
+            cash=-self.env.current_state[2] * 1.1,
             shares=(0, 1),
-            prices=tuple(self.env.states.iloc[1, 1:]),
+            prices=tuple(self.env.states[1, 1:]),
             total_risk=2,
-            res_imbalance_state=self.env._reverse_mapping.get(self.env.states.iloc[1, 0], None),
+            res_imbalance_state=self.env._reverse_mapping.get(self.env.states[1, 0], None),
             trade=None,
             penalty_trade=self.trade3
         )
 
         self.expected_portfolio4 = Portfolio(
             time=1,
-            cash=-self.env.current_state.iloc[2] * 1.1 - self.env.current_state.iloc[1],
+            cash=-self.env.current_state[2] * 1.1 - self.env.current_state[1],
             shares=(1, 1),
-            prices=tuple(self.env.states.iloc[1, 1:]),
+            prices=tuple(self.env.states[1, 1:]),
             total_risk=3,
-            res_imbalance_state=self.env._reverse_mapping.get(self.env.states.iloc[1, 0], None),
+            res_imbalance_state=self.env._reverse_mapping.get(self.env.states[1, 0], None),
             trade=self.trade2,
             penalty_trade=self.trade3
         )
@@ -79,18 +79,18 @@ class TestOptimalExecutionEnvironment(unittest.TestCase):
         self.assertEqual(self.env.get_reward(), 0)
 
         self.env.current_portfolio = self.expected_portfolio2
-        self.assertAlmostEqual(self.env.get_reward(), current_state.iloc[1]-self.trade2.cost)
+        self.assertAlmostEqual(self.env.get_reward(), current_state[1]-self.trade2.cost)
 
         self.env.current_portfolio = self.expected_portfolio3
-        self.assertAlmostEqual(self.env.get_reward(), current_state.iloc[2] - self.trade3.cost)
+        self.assertAlmostEqual(self.env.get_reward(), current_state[2] - self.trade3.cost)
 
         self.env.current_portfolio = self.expected_portfolio4
-        self.assertAlmostEqual(self.env.get_reward(), sum(current_state.iloc[1:]) - self.trade3.cost - self.trade2.cost)
+        self.assertAlmostEqual(self.env.get_reward(), sum(current_state[1:]) - self.trade3.cost - self.trade2.cost)
 
     def test_update_portfolio(self):
 
         self.env.state_index += 1
-        self.env.current_state = self.env.states.iloc[self.env.state_index, :]
+        self.env.current_state = self.env.states[self.env.state_index, :]
 
         self.assertEqual(self.env._update_portfolio(None, None), self.expected_portfolio1)
         self.assertEqual(self.env._update_portfolio(self.trade2, None), self.expected_portfolio2)
@@ -131,7 +131,7 @@ class TestOptimalExecutionEnvironment(unittest.TestCase):
 
             self.assertEqual(self.env.state_index, 1, f'args={args}')
             self.assertEqual(
-                self.env.current_state.values.tolist(), self.env.states.iloc[1].values.tolist(), f'args={args}'
+                self.env.current_state.tolist(), self.env.states[1].tolist(), f'args={args}'
             )
             self.assertEqual(self.env.current_portfolio, portfolio, f'args={args}')
 
