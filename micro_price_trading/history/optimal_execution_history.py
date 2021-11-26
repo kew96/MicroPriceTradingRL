@@ -35,6 +35,7 @@ class OptimalExecutionHistory(History, ABC):
     def __init__(
             self,
             max_actions: int,
+            max_steps: int,
             start_state: np.array,
             start_cash: Union[int, float],
             start_allocation: Allocation = None,
@@ -44,6 +45,8 @@ class OptimalExecutionHistory(History, ABC):
 
         if start_allocation is None:
             start_allocation = (0, 0)
+
+        self._expected_entries = max_steps + 1
 
         self.start_cash = start_cash
         self.start_risk = start_risk
@@ -59,6 +62,8 @@ class OptimalExecutionHistory(History, ABC):
         )
 
         self._portfolios = [[self.current_portfolio]]
+        self._rewards = [[]]
+        self._observations = [[]]
         self.__reverse_mapping = reverse_mapping
 
         History.__init__(self, max_actions=max_actions)
@@ -77,15 +82,34 @@ class OptimalExecutionHistory(History, ABC):
 
         return action_space
 
-    def _update_history(self, *args, **kwargs):
-        raise NotImplementedError
-
     @property
     def portfolio_history(self) -> np.array:
-        return np.array(self._portfolios)
+        return np.array([portfolios for portfolios in self._portfolios if len(portfolios) == self._expected_entries])
 
+    @property
     def share_history(self) -> np.array:
-        raise NotImplementedError
+        def get_shares(portfolio):
+            return portfolio.shares
+        get_shares = np.vectorize(get_shares)
+        return np.dstack(get_shares(self.portfolio_history))
+
+    @property
+    def risk_history(self) -> np.array:
+        def get_risk(portfolio):
+            return portfolio.total_risk
+        get_risk = np.vectorize(get_risk)
+        return get_risk(self.portfolio_history)
+
+    @property
+    def cash_history(self) -> np.array:
+        def get_cash(portfolio):
+            return portfolio.cash
+        get_cash = np.vectorize(get_cash)
+        return get_cash(self.portfolio_history)
+
+    def _update_debugging(self, reward, observation):
+        self._rewards[-1].append(reward)
+        self._observations[-1].append(observation)
 
     def _reset_history(self, start_state):
 
@@ -99,3 +123,4 @@ class OptimalExecutionHistory(History, ABC):
         )
 
         self._portfolios.append([self.current_portfolio])
+        self._rewards.append([])

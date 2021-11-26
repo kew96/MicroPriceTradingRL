@@ -9,6 +9,8 @@ from gym.spaces import Discrete, MultiDiscrete
 import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
+from matplotlib.legend_handler import HandlerTuple
 
 from micro_price_trading.utils import first_price_reward
 from micro_price_trading.history.history import Allocation
@@ -16,7 +18,7 @@ from micro_price_trading.preprocessing.preprocess import Data
 from micro_price_trading.history.optimal_execution_history import Portfolio
 from micro_price_trading import TwoAssetSimulation, OptimalExecutionBroker, OptimalExecutionHistory
 
-from micro_price_trading.config import PAIRS_TRADING_FIGURES, TWENTY_SECOND_DAY
+from micro_price_trading.config import OPTIMAL_EXECUTION_FIGURES, TWENTY_SECOND_DAY
 
 
 class OptimalExecutionEnvironment(
@@ -34,6 +36,7 @@ class OptimalExecutionEnvironment(
             trade_penalty: Union[int, float],
             reward_func: Callable = first_price_reward,
             start_allocation: Allocation = None,
+            max_purchase: int = 100,
             steps: int = TWENTY_SECOND_DAY,
             end_units_risk: int = 100,
             must_trade_interval: int = 5,
@@ -57,15 +60,6 @@ class OptimalExecutionEnvironment(
             trade_penalty=trade_penalty
         )
 
-        OptimalExecutionHistory.__init__(
-            self,
-            start_state=self.current_state,
-            start_cash=0,
-            start_allocation=start_allocation,
-            start_risk=0,
-            reverse_mapping=self._reverse_mapping
-        )
-
         self.state_index = 0
         self.terminal = False
 
@@ -82,6 +76,7 @@ class OptimalExecutionEnvironment(
                                                             f'= {must_trade_interval}, steps = {steps} but must ' \
                                                             'satisfy: steps // must_trade_interval <= end_units_risk'
         self._period_risk = self._calculate_period_risk_targets()
+        self._next_target_risk = list(self._period_risk.values())[0]
 
         self.observation_space = MultiDiscrete([
             len(self.mapping),  # Set of residual imbalance states
@@ -92,9 +87,20 @@ class OptimalExecutionEnvironment(
         ])
 
         # TODO self.action_space = MultiDiscrete([self.units_of_risk, self.units_of_risk/2])
-        self.action_space = Discrete(2 * self.end_units_risk + 1)
+        self.action_space = Discrete(2 * max_purchase + 1)
 
         self.prices_at_start = self.current_state[1:]
+
+        OptimalExecutionHistory.__init__(
+            self,
+            max_actions=self.action_space.n,
+            max_steps=self.steps,
+            start_state=self.current_state,
+            start_cash=0,
+            start_allocation=start_allocation,
+            start_risk=0,
+            reverse_mapping=self._reverse_mapping
+        )
 
     def step(self, action: Union[List, int]):
         """
@@ -110,7 +116,7 @@ class OptimalExecutionEnvironment(
         """
 
         # TODO below should not be necessary, need MultiDiscrete action_space
-        action -= self.end_units_risk
+        action -= self.action_space.n
 
         remaining_risk = self.end_units_risk - self.current_portfolio.total_risk
         if action:  # if we trade at all, remove the risk we bought and store `Trade`
@@ -135,26 +141,29 @@ class OptimalExecutionEnvironment(
             else:
                 penalty_trade = None
 
-            self.logical_update(trade, penalty_trade)
+            self.logical_update(trade, penalty_trade, True)
 
             reward = self.get_reward()
-            self.prices_at_start = self.states[self.state_index, :]
+            self.prices_at_start = self.current_state[1:]
         else:
             self.logical_update(trade, None)
             reward = self.get_reward()
 
         self.terminal = (self.state_index >= self.steps)
 
+        observation = [self.current_state[0],
+                       self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
+                       max(remaining_risk - self._next_target_risk, 0)]
+        self._update_debugging(reward, observation)
+
         return (
-            jnp.asarray([self.current_state[0],
-                         self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
-                         max(remaining_risk, 0)]),  # TODO: Potentially change this
+            jnp.asarray(observation),  # TODO: Potentially change this
             reward,
             self.terminal,
             {}
         )
 
-    def logical_update(self, trade=None, penalty_trade=None):
+    def logical_update(self, trade=None, penalty_trade=None, update_target=False):
         """
         Updates the state and portfolio with any necessary trades from this time step
 
@@ -163,6 +172,11 @@ class OptimalExecutionEnvironment(
             penalty_trade: A trade if we had a penalty trade this period
         """
 
+        if update_target:
+            self._next_target_risk = self._period_risk.get(self.state_index + self.must_trade_interval, None)
+        if self._next_target_risk is None:
+            print(self.state_index+self.must_trade_interval)
+            raise Exception
         self.state_index += 1
         self.current_state = self.states[self.state_index, :]
 
@@ -179,8 +193,8 @@ class OptimalExecutionEnvironment(
 
         """
         if diff := self.current_portfolio.total_risk - self.end_units_risk > 0:
-            return -abs(self.reward_func(self.current_portfolio, self.prices_at_start)) * diff
-        return self.reward_func(self.current_portfolio, self.prices_at_start, self.end_units_risk)
+            return -abs(self.reward_func(self.current_portfolio, self.prices_at_start, self.end_units_risk)) * diff
+        return self.reward_func(self.current_portfolio, self.prices_at_start, self._next_target_risk)
 
     def _calculate_period_risk_targets(self):
         """
@@ -273,41 +287,30 @@ class OptimalExecutionEnvironment(
 
         self.state_index = 0
         self.terminal = False
+        self._next_target_risk = list(self._period_risk.values())[0]
 
         OptimalExecutionBroker._reset_broker(self)
         OptimalExecutionHistory._reset_history(self, self.current_state)
 
-        return jnp.asarray([self.current_state[0], 4, self.end_units_risk])
+        return jnp.asarray([self.current_state[0], 4, self.end_units_risk - self._next_target_risk])
 
     def plot(
             self,
-            data='portfolio_history',
-            num_env_to_analyze=1,
-            state=None
+            data='share_history',
+            num_paths=1
     ):
         """
         The general function for plotting and visualizing the data. Options include the following:
-            `portfolio_history`
-            `position_history`
-            `asset_paths`
-            `summarize_decisions`
-            `summarize_state_decisions`
-            `state_frequency`
-            `learning_progress`
+            `share_history`
 
         Args:
             data: A string specifying the data to visualize
-            num_env_to_analyze: Only used in some options, combines the most recent iterations
-            state: Only used in some options, the specific residual imbalance state to visualize
+            num_paths: The number of paths to use, from most recent memory. Only used when applicable and when not
+                overcrowding plot
         """
         options = [
-            'portfolio_history',
-            'position_history',
-            'asset_paths',
-            'summarize_decisions',
-            'summarize_state_decisions',
-            'state_frequency',
-            'learning_progress'
+            'share_history',
+            'risk_history'
         ]
 
         if data == 'help':
@@ -316,134 +319,75 @@ class OptimalExecutionEnvironment(
         elif data not in options:
             raise LookupError(f'{data} is not an option. Type "help" for more info.')
 
-        if not PAIRS_TRADING_FIGURES.exists():
-            PAIRS_TRADING_FIGURES.mkdir()
+        if not OPTIMAL_EXECUTION_FIGURES.exists():
+            OPTIMAL_EXECUTION_FIGURES.mkdir()
 
-        if data == 'portfolio_history':
+        if data == 'share_history':
+            MAX_PATHS = min(5, len(self.share_history))
+
             fig, axs = plt.subplots(figsize=(15, 10))
 
-            axs.plot(range(len(self._portfolio_values_history[-2])), self._portfolio_values_history[-2], label='Total',
-                     c='k', alpha=0.7)
-            axs.set_ylabel('Total Value', fontsize=14)
+            for idx in range(-1, max(-num_paths - 1, -MAX_PATHS), -1):
+                axs.plot(self.share_history[idx, :, 1], self.share_history[idx, :, 0], label=f'Path {idx * -1}')
+            axs.set_ylabel('Asset 2', fontsize=14)
+            axs.set_xlabel('Asset 1', fontsize=14)
 
-            portfolio_values = np.array(self._portfolio_values_history[-2])
+            max_asset1 = self.end_units_risk // self.risk_weights[0]
+            max_asset2 = self.end_units_risk // self.risk_weights[1]
 
-            axs.scatter(
-                self._long_short_indices_history[-2],
-                portfolio_values[self._long_short_indices_history[-2]],
-                s=120,
-                c='g',
-                marker='^',
-                label='Long/Short'
+            axs.plot([max_asset1, 0], [0, max_asset2], 'lime', linewidth=2)
+            axs.plot([max_asset1, 0], [0, max_asset2], 'k--', linewidth=2, dashes=(3, 3))
+            axs.set_xlim(-5, max(max_asset1 + 10, max(self.share_history[-1, :, 1])))
+            axs.set_ylim(-5, max(max_asset2 + 10, max(self.share_history[-1, :, 0])))
+
+            handles, labels = axs.get_legend_handles_labels()
+            patches = [Patch(facecolor=color, label='Target Shares') for color in ('lime', 'black')]
+
+            handles.append(patches)
+            labels.append('Target Shares')
+
+            fig.legend(
+                handles=handles,
+                labels=labels,
+                ncol=1,
+                handler_map={list: HandlerTuple(None)},
+                fontsize=14
             )
-            axs.scatter(
-                self._short_long_indices_history[-2],
-                portfolio_values[self._short_long_indices_history[-2]],
-                s=120,
-                c='r',
-                marker='v',
-                label='Short/Long'
-            )
+            fig.suptitle('Share History', fontsize=14)
 
-            fig.legend(fontsize=14)
-            fig.suptitle('Portfolio Value', fontsize=14)
+            fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('share_history.png'), format='png')
 
-            fig.savefig(PAIRS_TRADING_FIGURES.joinpath('portfolio_history.png'), format='png')
+        elif data == 'risk_history':
+            MAX_PATHS = min(10, len(self.risk_history))
 
-        elif data == 'position_history':
             fig, axs = plt.subplots(figsize=(15, 10))
 
-            idxs = self._trade_indices_history[-2]
-            positions = np.array(self._positions_history[-2])
+            for idx in range(-1, max(-num_paths - 1, -MAX_PATHS), -1):
+                axs.plot(self.risk_history[idx], label=f'Path {idx * -1}')
+            axs.set_ylabel('Total Risk', fontsize=14)
+            axs.set_xlabel('Time Step', fontsize=14)
 
-            axs.plot(idxs, positions[idxs], 'b-', label='Asset 1')
-            axs.set_ylabel('Asset 1 Position', fontsize=14)
+            axs.hlines(self.end_units_risk, xmin=0, xmax=self.steps, colors='lime', linewidth=2)
+            axs.plot([0, self.steps], [self.end_units_risk] * 2, 'k--', linewidth=2, dashes=(3, 3))
 
-            fig.legend(fontsize=14)
-            fig.suptitle('Position', fontsize=14)
+            handles, labels = axs.get_legend_handles_labels()
+            patches = [Patch(facecolor=color, label='Target Risk') for color in ('lime', 'black')]
 
-            fig.savefig(PAIRS_TRADING_FIGURES.joinpath('position_history.png'), format='png')
+            handles.append(patches)
+            labels.append('Target Risk')
 
-        elif data == 'asset_paths':
-            fig, axs = plt.subplots(2, figsize=(15, 13))
-            axs[0].plot(self, self._last_states.iloc[:, 1], c='k', alpha=0.7)
-            axs[0].set_title('Asset 1')
+            fig.legend(
+                handles=handles,
+                labels=labels,
+                ncol=1,
+                handler_map={list: HandlerTuple(None)},
+                fontsize=14
+            )
+            fig.suptitle('Share History', fontsize=14)
 
-            axs[1].plot(self._trade_indices_history[-2], self._last_states.iloc[:, 2], c='k', alpha=0.7)
-            axs[1].set_title('Asset 2')
+            fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('risk_history.png'), format='png')
 
-            for idx, ax in enumerate(axs):
-                ax.scatter(
-                    self._long_short_indices_history[-2],
-                    self._last_states.iloc[self._long_short_indices_history[-2], idx + 1],
-                    s=120,
-                    c='g',
-                    marker='^',
-                    label='Long/Short'
-                )
-                ax.scatter(
-                    self._short_long_indices_history[-2],
-                    self._last_states.iloc[self._short_long_indices_history[-2], idx + 1],
-                    s=120,
-                    c='r',
-                    marker='v',
-                    label='Short/Long'
-                )
-
-            axs[0].legend(fontsize=14)
-            fig.suptitle('Asset Paths', fontsize=14)
-
-            fig.savefig(PAIRS_TRADING_FIGURES.joinpath('asset_paths.png'), format='png')
-
-        '''
-        
-        elif data == 'summarize_decisions':
-            """
-            This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
-            """
-            collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
-            states = []
-            d = {}  # keys are states, values are (unique, counts)
-
-            fig, ax = plt.subplots(figsize=(15, 10))
-            for key in sorted(collapsed):
-                states.append(key)
-                unique, counts = np.unique(collapsed[key], return_counts=True)
-                d[key] = (unique, counts)
-            freq_dict = {}
-            for i in range(-self.max_position, self.max_position + 1):
-                freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in
-                                sorted(d.keys())]
-
-            for pos, act in zip(range(-self.max_position, self.max_position + 1), range(self.action_space.n)):
-                ax.bar(sorted(d.keys()),
-                       freq_dict[pos],
-                       label=self.readable_action_space[act],
-                       bottom=sum([np.array(freq_dict[j]) for j in range(pos)])
-                       )
-
-            ax.legend()
-            plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
-            plt.show()
-
-        
-        elif data == 'summarize_state_decisions':
-            """
-            This plots the distribution of actions in a given state.
-            """
-            if state:
-                collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
-                unique, counts = np.unique(collapsed[state], return_counts=True)
-                plt.figure(figsize=(15, 10))
-                plt.bar([self.readable_action_space[i] for i in unique], counts)
-                plt.xticks([self.readable_action_space[i] for i in unique], fontsize=14)
-                plt.show()
-            else:
-                print('Must include state')
-                
-                '''
-
-        if data == 'state_frequency':
+        elif data == 'state_frequency':
             """
             Function to plot number of observations in each state. Will show distribution of states
             """

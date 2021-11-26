@@ -15,6 +15,7 @@ class TestOptimalExecutionHistory(unittest.TestCase):
         self.sim = TwoAssetSimulation(self.data, seed=0)
         self.history = OptimalExecutionHistory(
             max_actions=5,
+            max_steps=10,
             start_state=self.sim.current_state,
             start_cash=0,
             start_allocation=(0, 0),
