@@ -14,12 +14,12 @@ class TestOptimalExecutionEnvironment(unittest.TestCase):
         cls.data = raw.process()
 
     def setUp(self) -> None:
-        # Using default reward function
         self.env = OptimalExecutionEnvironment(
             data=self.data,
             risk_weights=(1, 2),
             trade_penalty=1.1,
             start_allocation=(0, 0),
+            reward_func=lambda port, p, target: port.cash,
             steps=1000,
             end_units_risk=100,
             must_trade_interval=100,
@@ -79,13 +79,13 @@ class TestOptimalExecutionEnvironment(unittest.TestCase):
         self.assertEqual(self.env.get_reward(), 0)
 
         self.env.current_portfolio = self.expected_portfolio2
-        self.assertAlmostEqual(self.env.get_reward(), current_state[1]-self.trade2.cost)
+        self.assertAlmostEqual(self.env.get_reward(), -current_state[1])
 
         self.env.current_portfolio = self.expected_portfolio3
-        self.assertAlmostEqual(self.env.get_reward(), current_state[2] - self.trade3.cost)
+        self.assertAlmostEqual(self.env.get_reward(), -current_state[2]*1.1)
 
         self.env.current_portfolio = self.expected_portfolio4
-        self.assertAlmostEqual(self.env.get_reward(), sum(current_state[1:]) - self.trade3.cost - self.trade2.cost)
+        self.assertAlmostEqual(self.env.get_reward(), -sum(current_state[1:]*[1, 1.1]))
 
     def test_update_portfolio(self):
 
