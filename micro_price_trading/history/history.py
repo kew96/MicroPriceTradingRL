@@ -28,9 +28,5 @@ class History(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _update_history(self, *args, **kwargs):
-        raise NotImplementedError
-
-    @abstractmethod
     def _reset_history(self, *args, **kwargs):
         raise NotImplementedError
