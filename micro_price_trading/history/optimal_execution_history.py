@@ -34,13 +34,13 @@ class OptimalExecutionHistory(History, ABC):
 
     def __init__(
             self,
+            max_actions: int,
             start_state: np.array,
             start_cash: Union[int, float],
             start_allocation: Allocation = None,
             start_risk: Union[int, float] = 0,
             reverse_mapping: Optional[dict] = None
     ):
-        History.__init__(self)
 
         if start_allocation is None:
             start_allocation = (0, 0)
@@ -61,8 +61,21 @@ class OptimalExecutionHistory(History, ABC):
         self._portfolios = [[self.current_portfolio]]
         self.__reverse_mapping = reverse_mapping
 
-    def _generate_readable_action_space(*args, **kwargs):
-        return None
+        History.__init__(self, max_actions=max_actions)
+
+    def _generate_readable_action_space(self, max_actions):
+        action_space = dict()
+
+        mid = max_actions // 2
+        for action in range(max_actions):
+            if action < mid:
+                action_space[action] = f'Buy {mid-action} shares of asset 1'
+            elif action > mid:
+                action_space[action] = f'Buy {action-mid} shares of asset 2'
+            else:
+                action_space[action] = 'Hold constant'
+
+        return action_space
 
     def _update_history(self, *args, **kwargs):
         raise NotImplementedError

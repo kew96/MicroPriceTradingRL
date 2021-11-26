@@ -14,6 +14,7 @@ class TestOptimalExecutionHistory(unittest.TestCase):
     def setUp(self) -> None:
         self.sim = TwoAssetSimulation(self.data, seed=0)
         self.history = OptimalExecutionHistory(
+            max_actions=5,
             start_state=self.sim.current_state,
             start_cash=0,
             start_allocation=(0, 0),
@@ -34,6 +35,15 @@ class TestOptimalExecutionHistory(unittest.TestCase):
         )
 
         self.assertEqual(self.history.current_portfolio, expected_portfolio)
+
+    def test_readable_action_space(self):
+        self.assertEqual(self.history.readable_action_space, {
+            0: 'Buy 2 shares of asset 1',
+            1: 'Buy 1 shares of asset 1',
+            2: 'Hold constant',
+            3: 'Buy 1 shares of asset 2',
+            4: 'Buy 2 shares of asset 2',
+        })
 
 
 if __name__ == '__main__':
