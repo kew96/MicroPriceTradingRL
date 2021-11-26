@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Tuple, Optional, Union
 
 import numpy as np
-import pandas as pd
+import jax.numpy as jnp
 
 from .history import History, Allocation
 
@@ -34,7 +34,7 @@ class OptimalExecutionHistory(History, ABC):
 
     def __init__(
             self,
-            start_state: pd.Series,
+            start_state: np.array,
             start_cash: Union[int, float],
             start_allocation: Allocation = None,
             start_risk: Union[int, float] = 0,
@@ -53,9 +53,9 @@ class OptimalExecutionHistory(History, ABC):
             time=0,
             cash=start_cash,
             shares=start_allocation,
-            prices=(start_state.iloc[1], start_state.iloc[2]),
+            prices=(start_state[1], start_state[2]),
             total_risk=start_risk,
-            res_imbalance_state=reverse_mapping[start_state.iloc[0]]
+            res_imbalance_state=reverse_mapping[start_state[0]]
         )
 
         self._portfolios = [[self.current_portfolio]]
@@ -80,9 +80,9 @@ class OptimalExecutionHistory(History, ABC):
             time=0,
             cash=self.start_cash,
             shares=self.start_allocation,
-            prices=(start_state.iloc[1], start_state.iloc[2]),
+            prices=(start_state[1], start_state[2]),
             total_risk=self.start_risk,
-            res_imbalance_state=self.__reverse_mapping[start_state.iloc[0]]
+            res_imbalance_state=self.__reverse_mapping[start_state[0]]
         )
 
         self._portfolios.append([self.current_portfolio])

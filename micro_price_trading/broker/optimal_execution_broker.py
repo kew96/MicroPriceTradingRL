@@ -44,7 +44,7 @@ class OptimalExecutionBroker(Broker, ABC):
 
         asset = self._determine_asset(action)
 
-        trading_cost = self.buy(shares=abs(action), price=current_state.iloc[asset])
+        trading_cost = self.buy(shares=abs(action), price=current_state[asset])
 
         if penalty_trade:
             trading_cost *= self.trade_penalty
@@ -53,7 +53,7 @@ class OptimalExecutionBroker(Broker, ABC):
             asset=asset,
             shares=abs(action),
             risk=self._get_risk(abs(action), asset),
-            price=current_state.iloc[asset],
+            price=current_state[asset],
             cost=trading_cost,
             penalty=penalty_trade
         )

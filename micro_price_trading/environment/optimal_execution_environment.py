@@ -18,13 +18,13 @@ from micro_price_trading import TwoAssetSimulation, OptimalExecutionBroker, Opti
 from micro_price_trading.config import PAIRS_TRADING_FIGURES, TWENTY_SECOND_DAY
 
 
-def first_price_reward(current_portfolio, prices_at_start):
+def first_price_reward(current_portfolio, prices_at_start, target_risk):
     diff = 0
     if current_portfolio.trade:
-        diff += (prices_at_start.iloc[current_portfolio.trade.asset-1] * current_portfolio.trade.shares
+        diff += (prices_at_start[current_portfolio.trade.asset - 1] * current_portfolio.trade.shares
                  - current_portfolio.trade.cost)
     if current_portfolio.penalty_trade:
-        diff += (prices_at_start.iloc[current_portfolio.penalty_trade.asset-1] * current_portfolio.penalty_trade.shares
+        diff += (prices_at_start[current_portfolio.penalty_trade.asset - 1] * current_portfolio.penalty_trade.shares
                  - current_portfolio.penalty_trade.cost)
     return diff
 
@@ -33,7 +33,8 @@ class OptimalExecutionEnvironment(
     TwoAssetSimulation,
     OptimalExecutionBroker,
     OptimalExecutionHistory,
-    gym.Env
+    gym.Env,
+    ABC
 ):
 
     def __init__(
@@ -85,13 +86,17 @@ class OptimalExecutionEnvironment(
         self.end_units_risk = end_units_risk
         self.must_trade_interval = must_trade_interval
         self._max_episode_steps = 10_000
-        self._end_of_periods = np.arange(self.must_trade_interval, self.steps+1, self.must_trade_interval).tolist()
+        self._end_of_periods = np.arange(self.must_trade_interval, self.steps + 1, self.must_trade_interval).tolist()
+
+        assert end_units_risk >= len(self._end_of_periods), f'end_units_risk = {end_units_risk}, must_trade_interval ' \
+                                                            f'= {must_trade_interval}, steps = {steps} but must ' \
+                                                            'satisfy: steps // must_trade_interval <= end_units_risk'
         self._period_risk = self._calculate_period_risk_targets()
 
         self.observation_space = MultiDiscrete([
             len(self.mapping),  # Set of residual imbalance states
             self.must_trade_interval,  # Number of steps left till end of must_trade_period
-            self.end_units_risk,  # Number of units of risk left to purchase
+            self.end_units_risk + 1,  # Number of units of risk left to purchase
             # self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
             # self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
         ])
@@ -99,7 +104,7 @@ class OptimalExecutionEnvironment(
         # TODO self.action_space = MultiDiscrete([self.units_of_risk, self.units_of_risk/2])
         self.action_space = Discrete(2 * self.end_units_risk + 1)
 
-        self.prices_at_start = self.states.iloc[0, 1:]
+        self.prices_at_start = self.current_state[1:]
 
     def step(self, action: Union[List, int]):
         """
@@ -107,19 +112,18 @@ class OptimalExecutionEnvironment(
         an RL agent to learn.
 
         Args:
-            action: The integer or array-like action
+            action: A positive integer that can be mapped to an action
 
         Returns: A tuple with the next state, the reward from the previous action, a terminal flag to decide if the
             environment is in the terminal state (True/False), and a dictionary with debugging information
 
         """
 
-        old_portfolio = self.current_portfolio
         # TODO below should not be necessary, need MultiDiscrete action_space
         action -= self.end_units_risk
 
         remaining_risk = self.end_units_risk - self.current_portfolio.total_risk
-        if action:  # if we traded at all, update portfolio
+        if action:  # if we trade at all, remove the risk we bought and store `Trade`
             trade = self.trade(
                 action=action,
                 current_state=self.current_state,
@@ -141,33 +145,28 @@ class OptimalExecutionEnvironment(
             else:
                 penalty_trade = None
 
-            self.current_portfolio = self._update_portfolio(
-                trade=trade,
-                penalty_trade=penalty_trade
-            )
+            self.logical_update(trade, penalty_trade)
 
-            # update portfolio, shares and num_trades
-            self.prices_at_start = self.states.iloc[self.state_index, :]
+            reward = self.get_reward()
+            self.prices_at_start = self.states[self.state_index, :]
         else:
-            self.current_portfolio = self._update_portfolio(
-                trade=trade,
-                penalty_trade=None
-            )
+            self.logical_update(trade, None)
+            reward = self.get_reward()
 
         self.terminal = (self.state_index >= self.steps)
 
         return (
-            jnp.asarray([self.current_state.values[0],
-                         self.must_trade_interval - self.state_index % self.must_trade_interval,
-                         remaining_risk]),
-            self.get_reward(),
+            jnp.asarray([self.current_state[0],
+                         self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
+                         max(remaining_risk, 0)]),  # TODO: Potentially change this
+            reward,
             self.terminal,
             {}
         )
 
     def logical_update(self, trade=None, penalty_trade=None):
         """
-        Passes the correct parameters to the History's update function based on the action and other current details
+        Updates the state and portfolio with any necessary trades from this time step
 
         Args:
             trade: A trade if we traded during this period
@@ -175,7 +174,7 @@ class OptimalExecutionEnvironment(
         """
 
         self.state_index += 1
-        self.current_state = self.states.iloc[self.state_index, :]
+        self.current_state = self.states[self.state_index, :]
 
         new_portfolio = self._update_portfolio(trade, penalty_trade)
 
@@ -189,8 +188,9 @@ class OptimalExecutionEnvironment(
         Returns: A float of the reward that we earn over this time step
 
         """
-
-        return self.reward_func(self.current_portfolio, self.prices_at_start)
+        if diff := self.current_portfolio.total_risk - self.end_units_risk > 0:
+            return -abs(self.reward_func(self.current_portfolio, self.prices_at_start)) * diff
+        return self.reward_func(self.current_portfolio, self.prices_at_start, self.end_units_risk)
 
     def _calculate_period_risk_targets(self):
         """
@@ -205,12 +205,27 @@ class OptimalExecutionEnvironment(
         return dict(zip(self._end_of_periods, risk_values))
 
     def _get_penalty_action(self, total_remaining, period_target):
-        # buy all remaining units of risk using the highest risk weighting
-        # this minimizes the number of shares to buy and, ideally, the market impact
+        """
+        Calculates the correct action based of the period's target risk value and the total remaining risk at the end of
+        the current time step. We choose to buy the asset with the highest `risk_weighting`. Ideally, this will minimize
+        the number of shares purchased, and, therefore the market impact of the trade. If we have less risk to buy than
+        the weighting of the max asset, we must buy the lower risk asset.
+
+        Args:
+            total_remaining: The total remaining risk to buy over the entire simulation
+            period_target: The target level to be at for the end of the period
+
+        Returns: The correct action based on the remaining risk values
+
+        """
 
         risk_to_buy = total_remaining - period_target
-        shares_to_buy = risk_to_buy // max(self.risk_weights)
-        asset_to_buy = np.argmax(self.risk_weights) + 1
+        if risk_to_buy < max(self.risk_weights):
+            shares_to_buy = risk_to_buy // min(self.risk_weights)
+            asset_to_buy = np.argmin(self.risk_weights) + 1
+        else:
+            shares_to_buy = risk_to_buy // max(self.risk_weights)
+            asset_to_buy = np.argmax(self.risk_weights) + 1
 
         return shares_to_buy if asset_to_buy == 2 else -shares_to_buy
 
@@ -233,9 +248,9 @@ class OptimalExecutionEnvironment(
             new_cash -= trade.cost
             new_risk += trade.risk
             if trade.asset == 1:
-                new_shares = new_shares[0]+trade.shares, new_shares[1]
+                new_shares = new_shares[0] + trade.shares, new_shares[1]
             else:
-                new_shares = new_shares[0], new_shares[1]+trade.shares
+                new_shares = new_shares[0], new_shares[1] + trade.shares
         if penalty_trade:
             new_cash -= penalty_trade.cost
             new_risk += penalty_trade.risk
@@ -248,9 +263,9 @@ class OptimalExecutionEnvironment(
             self.state_index,
             cash=new_cash,
             shares=new_shares,
-            prices=tuple(self.current_state.iloc[1:]),
+            prices=tuple(self.current_state[1:]),
             total_risk=new_risk,
-            res_imbalance_state=self._reverse_mapping[self.current_state.iloc[0]],
+            res_imbalance_state=self._reverse_mapping[self.current_state[0]],
             trade=trade,
             penalty_trade=penalty_trade
         )
@@ -272,7 +287,7 @@ class OptimalExecutionEnvironment(
         OptimalExecutionBroker._reset_broker(self)
         OptimalExecutionHistory._reset_history(self, self.current_state)
 
-        return jnp.asarray([self.current_state.values[0], 0, self.end_units_risk])
+        return jnp.asarray([self.current_state[0], 4, self.end_units_risk])
 
     def plot(
             self,
