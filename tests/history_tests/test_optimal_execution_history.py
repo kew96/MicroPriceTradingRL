@@ -15,7 +15,7 @@ class TestOptimalExecutionHistory(unittest.TestCase):
         self.sim = TwoAssetSimulation(self.data, seed=0)
         self.history = OptimalExecutionHistory(
             max_actions=5,
-            max_steps=10,
+            max_steps=0,
             start_state=self.sim.current_state,
             start_cash=0,
             start_allocation=(0, 0),
@@ -45,6 +45,12 @@ class TestOptimalExecutionHistory(unittest.TestCase):
             3: 'Buy 1 shares of asset 2',
             4: 'Buy 2 shares of asset 2',
         })
+
+    def test_reset(self):
+        for num in range(2, 11):
+            self.history._reset_history(self.sim.current_state)
+            self.assertEqual(len(self.history._portfolios), num)
+            self.assertEqual(self.history.portfolio_history.shape, (num, 1))
 
 
 if __name__ == '__main__':
