@@ -34,7 +34,7 @@ class OptimalExecutionEnvironment(
             data: Data,
             risk_weights: Tuple[int, int],
             trade_penalty: Union[int, float],
-            reward_func: Callable = first_price_reward,
+            reward_func: Callable = first_price_reward,  # Moved this to utils.py, easy way to store an useful functions
             start_allocation: Allocation = None,
             max_purchase: int = 100,
             steps: int = TWENTY_SECOND_DAY,
@@ -70,23 +70,27 @@ class OptimalExecutionEnvironment(
         self.end_units_risk = end_units_risk
         self.must_trade_interval = must_trade_interval
         self._max_episode_steps = 10_000
+        # List of the times that are the end of each trading interval
         self._end_of_periods = np.arange(self.must_trade_interval, self.steps + 1, self.must_trade_interval).tolist()
 
         assert end_units_risk >= len(self._end_of_periods), f'end_units_risk = {end_units_risk}, must_trade_interval ' \
                                                             f'= {must_trade_interval}, steps = {steps} but must ' \
                                                             'satisfy: steps // must_trade_interval <= end_units_risk'
+        # Dictionary with the end_of_periods as the keys and the values are the remaining risk to buy at the end of each
+        # period
         self._period_risk = self._calculate_period_risk_targets()
+        # Next risk target for the end of the current period
         self._next_target_risk = list(self._period_risk.values())[0]
 
         self.observation_space = MultiDiscrete([
             len(self.mapping),  # Set of residual imbalance states
             self.must_trade_interval,  # Number of steps left till end of must_trade_period
             self._next_target_risk-list(self._period_risk.values())[1],  # Number of units of risk left to purchase
-            # self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
-            # self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
         ])
 
         # TODO self.action_space = MultiDiscrete([self.units_of_risk, self.units_of_risk/2])
+        # Switched from end_units_risk to max_purchase. I thought that end_units_risk might have given too large of
+        # an action space to search over but not sure this is the case
         self.action_space = Discrete(2 * max_purchase + 1)
         assert self.action_space.n % 2 == 1, 'action_space must be odd in order to be symmetric around 0'
 
@@ -119,10 +123,12 @@ class OptimalExecutionEnvironment(
         # TODO below should not be necessary, need MultiDiscrete action_space
         raw_action = np.array(action).item()
         action -= self.action_space.n//2
+        # if action > 0, buy asset 2
 
         assert raw_action >= 0
 
-        remaining_risk = self.end_units_risk - self.current_portfolio.total_risk
+        remaining_risk = self.end_units_risk - self.current_portfolio.total_risk # Total risk remaining to buy
+
         if action:  # if we trade at all, remove the risk we bought and store `Trade`
             trade = self.trade(
                 action=action,
@@ -130,15 +136,15 @@ class OptimalExecutionEnvironment(
                 penalty_trade=False
             )
 
-            remaining_risk -= trade.risk
+            remaining_risk -= trade.risk  # Remove the risk we just bought
         else:
             trade = None
 
         if self.state_index in self._end_of_periods:
-            temp_target_risk = self._period_risk.get(self.state_index, self.end_units_risk)
-            if remaining_risk > temp_target_risk:
+
+            if remaining_risk > self._next_target_risk:
                 penalty_trade = self.trade(
-                    action=self._get_penalty_action(remaining_risk, temp_target_risk),
+                    action=self._get_penalty_action(remaining_risk, self._next_target_risk),
                     current_state=self.current_state,
                     penalty_trade=True
                 )
@@ -153,15 +159,19 @@ class OptimalExecutionEnvironment(
             self.logical_update(trade, None)
             reward = self.get_reward()
 
-        self.terminal = (self.state_index >= self.steps)
+        self.terminal = self.state_index >= self.steps
 
-        observation = [self.current_state[0],
+        observation = [self.current_state[0],  # Integer state
+                       # Must subtract 1 so that these values start at 0, e.g. 5 - 99 % 5 - 1 = 0 and is the lowest
+                       # this value can go. This seemed to solve an error I was throwing before but could be explored
                        self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
+                       # Again, this has a minimum of 0 now and allows us to guarantee the size of the observation space
                        max(remaining_risk - self._next_target_risk, 0)]
+
         self._update_debugging(raw_action, reward, observation)
 
         return (
-            jnp.asarray(observation),  # TODO: Potentially change this
+            jnp.asarray(observation),
             reward[0],
             self.terminal,
             {}
@@ -229,6 +239,8 @@ class OptimalExecutionEnvironment(
         """
 
         risk_to_buy = total_remaining - period_target
+
+        # If 1 share of the max risk weight puts us over the risk for this period, we have to buy the smaller risk one
         if risk_to_buy < max(self.risk_weights):
             shares_to_buy = risk_to_buy // min(self.risk_weights)
             asset_to_buy = np.argmin(self.risk_weights) + 1
@@ -307,6 +319,7 @@ class OptimalExecutionEnvironment(
         """
         The general function for plotting and visualizing the data. Options include the following:
             `share_history`
+            `risk_history`
 
         Args:
             data: A string specifying the data to visualize
@@ -388,7 +401,7 @@ class OptimalExecutionEnvironment(
                 handler_map={list: HandlerTuple(None)},
                 fontsize=14
             )
-            fig.suptitle('Share History', fontsize=14)
+            fig.suptitle('Risk History', fontsize=14)
 
             fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('risk_history.png'), format='png')
 
