@@ -74,6 +74,17 @@ class TestUtils(unittest.TestCase):
             penalty_trade=trade3
         )
 
+        cls.portfolio5 = Portfolio(
+            time=1,
+            cash=-20 * 1.1 - 3,
+            shares=(1, 2),
+            prices=(3, 10),
+            total_risk=20,
+            res_imbalance_state='301',
+            trade=trade2,
+            penalty_trade=trade3
+        )
+
     def test_first_price_reward(self):
         prices_at_start = np.array([1, 20])
 
@@ -81,11 +92,13 @@ class TestUtils(unittest.TestCase):
         expected2 = -2
         expected3 = 18  # 40 - 20 * 1.1
         expected4 = 16  # 40 - 20 * 1.1 - (-2)
+        expected5 = -100  # -(20 - 10) ** 2
 
-        self.assertEqual(first_price_reward(self.portfolio1, prices_at_start, None), expected1)
-        self.assertEqual(first_price_reward(self.portfolio2, prices_at_start, None), expected2)
-        self.assertEqual(first_price_reward(self.portfolio3, prices_at_start, None), expected3)
-        self.assertEqual(first_price_reward(self.portfolio4, prices_at_start, None), expected4)
+        self.assertEqual(first_price_reward(self.portfolio1, prices_at_start, 10), expected1)
+        self.assertEqual(first_price_reward(self.portfolio2, prices_at_start, 10), expected2)
+        self.assertEqual(first_price_reward(self.portfolio3, prices_at_start, 10), expected3)
+        self.assertEqual(first_price_reward(self.portfolio4, prices_at_start, 10), expected4)
+        self.assertEqual(first_price_reward(self.portfolio5, prices_at_start, 10), expected5)
 
 
 if __name__ == '__main__':
