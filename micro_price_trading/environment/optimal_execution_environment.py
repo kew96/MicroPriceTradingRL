@@ -81,13 +81,14 @@ class OptimalExecutionEnvironment(
         self.observation_space = MultiDiscrete([
             len(self.mapping),  # Set of residual imbalance states
             self.must_trade_interval,  # Number of steps left till end of must_trade_period
-            self.end_units_risk + 1,  # Number of units of risk left to purchase
+            self._next_target_risk-list(self._period_risk.values())[1],  # Number of units of risk left to purchase
             # self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
             # self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
         ])
 
         # TODO self.action_space = MultiDiscrete([self.units_of_risk, self.units_of_risk/2])
         self.action_space = Discrete(2 * max_purchase + 1)
+        assert self.action_space.n % 2 == 1, 'action_space must be odd in order to be symmetric around 0'
 
         self.prices_at_start = self.current_state[1:]
 
@@ -116,7 +117,10 @@ class OptimalExecutionEnvironment(
         """
 
         # TODO below should not be necessary, need MultiDiscrete action_space
-        action -= self.action_space.n
+        raw_action = np.array(action).item()
+        action -= self.action_space.n//2
+
+        assert raw_action >= 0
 
         remaining_risk = self.end_units_risk - self.current_portfolio.total_risk
         if action:  # if we trade at all, remove the risk we bought and store `Trade`
@@ -154,11 +158,11 @@ class OptimalExecutionEnvironment(
         observation = [self.current_state[0],
                        self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
                        max(remaining_risk - self._next_target_risk, 0)]
-        self._update_debugging(reward, observation)
+        self._update_debugging(raw_action, reward, observation)
 
         return (
             jnp.asarray(observation),  # TODO: Potentially change this
-            reward,
+            reward[0],
             self.terminal,
             {}
         )
@@ -170,13 +174,12 @@ class OptimalExecutionEnvironment(
         Args:
             trade: A trade if we traded during this period
             penalty_trade: A trade if we had a penalty trade this period
+            update_target: A flag as to whether we are at the end of a period and need to update the target risk
         """
 
         if update_target:
             self._next_target_risk = self._period_risk.get(self.state_index + self.must_trade_interval, None)
-        if self._next_target_risk is None:
-            print(self.state_index+self.must_trade_interval)
-            raise Exception
+
         self.state_index += 1
         self.current_state = self.states[self.state_index, :]
 
@@ -192,9 +195,11 @@ class OptimalExecutionEnvironment(
         Returns: A float of the reward that we earn over this time step
 
         """
-        if diff := self.current_portfolio.total_risk - self.end_units_risk > 0:
-            return -abs(self.reward_func(self.current_portfolio, self.prices_at_start, self.end_units_risk)) * diff
-        return self.reward_func(self.current_portfolio, self.prices_at_start, self._next_target_risk)
+        return self.reward_func(
+            self.current_portfolio,
+            self.prices_at_start,
+            self.end_units_risk-self._next_target_risk
+        )
 
     def _calculate_period_risk_targets(self):
         """
