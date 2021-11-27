@@ -64,6 +64,7 @@ class OptimalExecutionHistory(History, ABC):
         self._portfolios = [[self.current_portfolio]]
         self._rewards = [[]]
         self._observations = [[]]
+        self._raw_actions = [[]]
         self.__reverse_mapping = reverse_mapping
 
         History.__init__(self, max_actions=max_actions)
@@ -107,7 +108,8 @@ class OptimalExecutionHistory(History, ABC):
         get_cash = np.vectorize(get_cash)
         return get_cash(self.portfolio_history)
 
-    def _update_debugging(self, reward, observation):
+    def _update_debugging(self, raw_action, reward, observation):
+        self._raw_actions[-1].append(raw_action)
         self._rewards[-1].append(reward)
         self._observations[-1].append(observation)
 
@@ -123,4 +125,6 @@ class OptimalExecutionHistory(History, ABC):
         )
 
         self._portfolios.append([self.current_portfolio])
+        self._raw_actions.append([])
         self._rewards.append([])
+        self._observations.append([])
