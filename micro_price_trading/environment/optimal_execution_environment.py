@@ -127,7 +127,7 @@ class OptimalExecutionEnvironment(
 
         assert raw_action >= 0
 
-        remaining_risk = self.end_units_risk - self.current_portfolio.total_risk # Total risk remaining to buy
+        remaining_risk = self.end_units_risk - self.current_portfolio.total_risk  # Total risk remaining to buy
 
         if action:  # if we trade at all, remove the risk we bought and store `Trade`
             trade = self.trade(
@@ -225,10 +225,10 @@ class OptimalExecutionEnvironment(
 
     def _get_penalty_action(self, total_remaining, period_target):
         """
-        Calculates the correct action based of the period's target risk value and the total remaining risk at the end of
-        the current time step. We choose to buy the asset with the highest `risk_weighting`. Ideally, this will minimize
-        the number of shares purchased, and, therefore the market impact of the trade. If we have less risk to buy than
-        the weighting of the max asset, we must buy the lower risk asset.
+        Calculates the correct action based off the period's target risk value and the total remaining risk at the end
+        of the current time step. We choose to buy the asset with the highest `risk_weighting`. Ideally, this will
+        minimize the number of shares purchased, and, therefore the market impact of the trade. If we have less risk to
+        buy than the weighting of the max asset, we must buy the lower risk asset.
 
         Args:
             total_remaining: The total remaining risk to buy over the entire simulation
@@ -328,7 +328,8 @@ class OptimalExecutionEnvironment(
         """
         options = [
             'share_history',
-            'risk_history'
+            'risk_history',
+            'extensive risk history'
         ]
 
         if data == 'help':
@@ -404,6 +405,23 @@ class OptimalExecutionEnvironment(
             fig.suptitle('Risk History', fontsize=14)
 
             fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('risk_history.png'), format='png')
+
+        elif data == 'extensive risk history':
+            df = self.portfolios_to_df(self.portfolio_history[-1])
+            shares_1 = np.cumsum(df['trade_shares'].fillna(0) * (df['trade_asset'].fillna(0) == 1).astype(int))
+            shares_2 = np.cumsum(df['trade_shares'].fillna(0) * (df['trade_asset'].fillna(0) == 2).astype(int))
+            asset_1_total_cost = np.cumsum((df['trade_asset'].fillna(0) == 1).astype(int) * df['trade_cost'].fillna(0))
+            asset_2_total_cost = np.cumsum((df['trade_asset'].fillna(0) == 2).astype(int) * df['trade_cost'].fillna(0))
+
+            fig, ax = plt.subplots(figsize=(15, 10))
+            ax.plot(df.time, asset_1_total_cost, label='total cost in asset 1')
+            ax.plot(df.time, asset_2_total_cost, label='total cost in asset 2')
+            ax.plot(df.time, asset_1_total_cost + asset_2_total_cost, label='total cost')
+
+            ax.hlines(2340 - np.array(list(self._period_risk.values())),
+                      xmin=0, xmax=self.steps, colors='lime', linewidth=2)
+
+            ax.legend()
 
         elif data == 'state_frequency':
             """

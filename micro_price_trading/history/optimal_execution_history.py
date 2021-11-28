@@ -6,6 +6,8 @@ import numpy as np
 import jax.numpy as jnp
 
 from .history import History, Allocation
+import dataclasses
+import pandas as pd
 
 
 @dataclass
@@ -82,6 +84,29 @@ class OptimalExecutionHistory(History, ABC):
                 action_space[action] = 'Hold constant'
 
         return action_space
+
+    # Portfolios to Data Frame
+    @staticmethod
+    def portfolios_to_df(portfolios):
+
+        assert len(portfolios) > 0
+        c = portfolios[0]
+        portfolio_cols = [field.name for field in dataclasses.fields(c)]
+        trade_cols = ['trade_asset', 'trade_shares', 'trade_risk',
+                      'trade_price', 'trade_cost', 'trade_penalty']
+
+        portfolios_data = [[getattr(i, col) for col in portfolio_cols] for i in portfolios]
+
+        data_in = []
+        for i in portfolios:
+            l = [getattr(i, col) for col in portfolio_cols]
+            if i.trade:
+                l += [getattr(i.trade, col[6:]) for col in trade_cols]
+            data_in.append(l)
+
+        df = pd.DataFrame(columns=portfolio_cols + trade_cols, data=data_in)
+
+        return df
 
     @property
     def portfolio_history(self) -> np.array:

@@ -14,6 +14,8 @@ class OptimalExecutionBroker(Broker, ABC):
             risk_weights: Tuple[int, int],
             trade_penalty: Union[int, float]
     ):
+        # TODO the below line was tossing an error for me
+       # Broker.__init__(self)
         self.risk_weights = risk_weights
         self.trade_penalty = trade_penalty
 
@@ -52,7 +54,7 @@ class OptimalExecutionBroker(Broker, ABC):
         trade = Trade(
             asset=asset,
             shares=abs(action),
-            risk=self._get_risk(abs(action), asset),
+            risk=self._get_risk(abs(action), asset, current_state[asset]),
             price=current_state[asset],
             cost=trading_cost,
             penalty=penalty_trade
@@ -77,7 +79,8 @@ class OptimalExecutionBroker(Broker, ABC):
         elif action > 0:
             return 2
 
-    def _get_risk(self, shares, asset):
+    # TODO make flexible to to support both risk by shares and risk by $
+    def _get_risk(self, shares, asset, current_state):
         """
         Gets the risk profile of the trade
 
