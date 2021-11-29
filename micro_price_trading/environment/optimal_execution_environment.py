@@ -91,7 +91,7 @@ class OptimalExecutionEnvironment(
         # TODO self.action_space = MultiDiscrete([self.units_of_risk, self.units_of_risk/2])
         # Switched from end_units_risk to max_purchase. I thought that end_units_risk might have given too large of
         # an action space to search over but not sure this is the case
-        self.action_space = Discrete(2 * max_purchase + 1)
+        self.action_space = Discrete(3)
         assert self.action_space.n % 2 == 1, 'action_space must be odd in order to be symmetric around 0'
 
         self.prices_at_start = self.current_state[1:]
@@ -122,21 +122,29 @@ class OptimalExecutionEnvironment(
 
         # TODO below should not be necessary, need MultiDiscrete action_space
         raw_action = np.array(action).item()
-        action -= self.action_space.n//2
         # if action > 0, buy asset 2
 
         assert raw_action >= 0
 
         remaining_risk = self.end_units_risk - self.current_portfolio.total_risk  # Total risk remaining to buy
 
-        if action:  # if we trade at all, remove the risk we bought and store `Trade`
-            trade = self.trade(
-                action=action,
-                current_state=self.current_state,
-                penalty_trade=False
-            )
+        if action:
+            if action == 1:  # we want to buy asset 1
+                trade = self.trade(
+                    action=-1,  # buy 1 share of asset 1
+                    current_state=self.current_state,
+                    penalty_trade=False
+                )
+            elif action == 2:  # we want to buy asset 2
+                trade = self.trade(
+                    action=2,  # buy two shares of asset 2
+                    current_state=self.current_state,
+                    penalty_trade=False
+                )
 
-            remaining_risk -= trade.risk  # Remove the risk we just bought
+            penalty_trade = False  # TODO where to put this
+
+            remaining_risk -= trade.risk # Remove the risk we just bought
         else:
             trade = None
 
@@ -151,13 +159,10 @@ class OptimalExecutionEnvironment(
             else:
                 penalty_trade = None
 
-            # TODO penalty trade doesn't seem to buy the correct amount of risk
             self.logical_update(trade, penalty_trade, True)
-
             reward = self.get_reward()
             self.prices_at_start = self.current_state[1:]
         else:
-            # TODO is the order of logical update and reward correct?
             self.logical_update(trade, None)
             reward = self.get_reward()
 
