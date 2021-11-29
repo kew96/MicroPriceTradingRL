@@ -14,7 +14,6 @@ class OptimalExecutionBroker(Broker, ABC):
             risk_weights: Tuple[int, int],
             trade_penalty: Union[int, float]
     ):
-        # TODO the below line was tossing an error for me
         Broker.__init__(self)
         self.risk_weights = risk_weights
         self.trade_penalty = trade_penalty
