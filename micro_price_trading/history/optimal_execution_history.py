@@ -131,6 +131,39 @@ class OptimalExecutionHistory(History, ABC):
         get_cash = np.vectorize(get_cash)
         return get_cash(self.portfolio_history)
 
+    @property
+    def asset_paths(self) -> np.array:
+        def get_prices(portfolio):
+            return portfolio.prices
+        get_prices = np.vectorize(get_prices)
+        return np.dstack(get_prices(self.portfolio_history))
+
+    @property
+    def trades(self) -> np.array:
+        def did_trade(portfolio):
+            if portfolio.trade:
+                if portfolio.trade.asset == 1:
+                    return True, False
+                elif portfolio.trade.asset == 2:
+                    return False, True
+            else:
+                return False, False
+        did_trade = np.vectorize(did_trade)
+        return np.dstack(did_trade(self.portfolio_history))
+
+    @property
+    def forced_trades(self) -> np.array:
+        def did_force_trade(portfolio):
+            if portfolio.penalty_trade:
+                if portfolio.penalty_trade.asset == 1:
+                    return True, False
+                elif portfolio.penalty_trade.asset == 2:
+                    return False, True
+            else:
+                return False, False
+        did_force_trade = np.vectorize(did_force_trade)
+        return np.dstack(did_force_trade(self.portfolio_history))
+
     def _update_debugging(self, raw_action, reward, observation):
         self._raw_actions[-1].append(raw_action)
         self._rewards[-1].append(reward)

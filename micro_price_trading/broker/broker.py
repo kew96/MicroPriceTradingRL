@@ -5,7 +5,7 @@ class Broker(ABC):
 
     @abstractmethod
     def __init__(self, *args, **kwargs):
-        raise NotImplementedError
+        pass
 
     @abstractmethod
     def trade(self, *args, **kwargs):

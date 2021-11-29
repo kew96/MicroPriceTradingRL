@@ -321,6 +321,7 @@ class OptimalExecutionEnvironment(
             `share_history`
             `risk_history`
             `extensive_risk_history`
+            `asset_paths`
 
         Args:
             data: A string specifying the data to visualize
@@ -330,7 +331,8 @@ class OptimalExecutionEnvironment(
         options = [
             'share_history',
             'risk_history',
-            'extensive_risk_history'
+            'extensive_risk_history',
+            'asset_paths'
         ]
 
         if data == 'help':
@@ -423,6 +425,32 @@ class OptimalExecutionEnvironment(
             ax.legend()
 
             fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('extensive_risk_history.png', format='png'))
+
+        elif data == 'asset_paths':
+            paths = self.asset_paths[-1]
+            trades = self.trades[-1]
+            forced_trades = self.forced_trades[-1]
+
+            fig, axs = plt.subplots(2, figsize=(15, 13))
+            axs[0].plot(paths[:, 0], c='k', alpha=0.7)
+            axs[0].scatter(np.argwhere(trades[:, 0]), paths[trades[:, 0], 0], c='g', label='Buy Asset 1')
+            axs[0].scatter(
+                np.argwhere(forced_trades[:, 0]), paths[forced_trades[:, 0], 0], c='r', label='Forced Buy Asset 1'
+            )
+            axs[0].set_title('Asset 1')
+
+            axs[1].plot(paths[:, 1], c='k', alpha=0.7)
+            axs[1].scatter(np.argwhere(trades[:, 1]), paths[trades[:, 1], 1], c='g', label='Buy Asset 2')
+            axs[1].scatter(
+                np.argwhere(forced_trades[:, 1]), paths[forced_trades[:, 1], 1], c='r', label='Forced Buy Asset 2'
+            )
+            axs[1].set_title('Asset 2')
+
+            axs[0].legend(fontsize=14)
+            axs[1].legend(fontsize=14)
+            fig.suptitle('Asset Paths', fontsize=14)
+
+            fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('asset_paths.png'), format='png')
 
         elif data == 'state_frequency':
             """
