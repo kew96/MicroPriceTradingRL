@@ -15,5 +15,10 @@ def first_price_reward(current_portfolio: Portfolio, prices_at_start: np.ndarray
                  - current_portfolio.penalty_trade.cost)
     if target_risk < current_portfolio.total_risk:
         # If we are over the total risk for this period, penalize if even more
-        return -10 -abs(diff) * (current_portfolio.total_risk - target_risk), 'risk penalty'
+        if current_portfolio.trade:
+            return -10 * current_portfolio.trade.shares -abs(diff) * (current_portfolio.total_risk - target_risk),\
+                   'risk penalty'
+        else:
+            return - abs(diff) * (current_portfolio.total_risk - target_risk), \
+                   'risk penalty'
     return diff, 'actual'

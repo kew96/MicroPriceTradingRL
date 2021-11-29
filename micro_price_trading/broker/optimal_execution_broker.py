@@ -48,6 +48,7 @@ class OptimalExecutionBroker(Broker, ABC):
 
         trading_cost = self.buy(shares=abs(action), price=current_state[asset])
 
+        ## TODO is this supposed to effect the rewards? I'm not sure if it does
         if penalty_trade:
             trading_cost *= self.trade_penalty
 
