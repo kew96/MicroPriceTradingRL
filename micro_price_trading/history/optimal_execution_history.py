@@ -86,8 +86,7 @@ class OptimalExecutionHistory(History, ABC):
         return action_space
 
     # Portfolios to Data Frame
-    @staticmethod
-    def portfolios_to_df(portfolios):
+    def portfolios_to_df(self, portfolios):
 
         assert len(portfolios) > 0
         c = portfolios[0]
@@ -103,6 +102,18 @@ class OptimalExecutionHistory(History, ABC):
             data_in.append(temp_data)
 
         df = pd.DataFrame(columns=portfolio_cols + trade_cols, data=data_in)
+
+        period_risk_targets = pd.DataFrame({'time': self._period_risk.keys(),
+                                            'risk': 2340 - np.array(list(self._period_risk.values()))})
+
+        df = df.merge(period_risk_targets, how='outer')
+        df['next_risk_target'] = df.risk.fillna(method='bfill')
+        df['distance_to_next_risk_target'] = df['next_risk_target'] - df['total_risk']
+
+        df['rewards'] = [np.nan] + self._rewards[-1]
+        df['observations'] = [np.nan] + self._observations[-1]
+        df['raw_action'] = self._raw_actions[-1] + [np.nan]
+        df['action'] = df['raw_action'] - self.action_space.n // 2
 
         return df
 
