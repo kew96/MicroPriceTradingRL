@@ -135,7 +135,7 @@ class OptimalExecutionEnvironment(
                     current_state=self.current_state,
                     penalty_trade=False
                 )
-            elif action == 2:  # we want to buy asset 2
+            else:  # we want to buy asset 2
                 trade = self.trade(
                     action=2,  # buy two shares of asset 2
                     current_state=self.current_state,
@@ -144,7 +144,7 @@ class OptimalExecutionEnvironment(
 
             penalty_trade = False  # TODO where to put this
 
-            remaining_risk -= trade.risk # Remove the risk we just bought
+            remaining_risk -= trade.risk  # Remove the risk we just bought
         else:
             trade = None
 
@@ -165,6 +165,19 @@ class OptimalExecutionEnvironment(
         else:
             self.logical_update(trade, None)
             reward = self.get_reward()
+            if trade:
+                for _ in range(self.must_trade_interval - self.state_index % self.must_trade_interval - 1):
+                    if self.state_index >= self.steps - 2:
+                        break
+                    self._update_debugging(0,
+                                           (0, 'pass'),
+                                           [self.current_state[0],
+                                            self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
+                                            self.end_units_risk
+                                            - self.current_portfolio.total_risk
+                                            - self._next_target_risk]
+                                           )
+                    self.logical_update(None, None)
 
         self.terminal = self.state_index >= self.steps
 
