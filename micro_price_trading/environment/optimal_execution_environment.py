@@ -168,7 +168,7 @@ class OptimalExecutionEnvironment(
                        # this value can go. This seemed to solve an error I was throwing before but could be explored
                        self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
                        # Again, this has a minimum of 0 now and allows us to guarantee the size of the observation space
-                       max(remaining_risk - self._next_target_risk, 0)]
+                       self.end_units_risk - self.current_portfolio.total_risk - self._next_target_risk]
 
         self._update_debugging(raw_action, reward, observation)
 
@@ -414,7 +414,7 @@ class OptimalExecutionEnvironment(
             fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('risk_history.png'), format='png')
 
         elif data == 'extensive_risk_history':
-            df = self.portfolios_to_df(self.portfolio_history[-1])
+            df = self.portfolios_to_df()
             asset_1_total_cost = np.cumsum((df['trade_asset'].fillna(0) == 1).astype(int) * df['trade_cost'].fillna(0))
             asset_2_total_cost = np.cumsum((df['trade_asset'].fillna(0) == 2).astype(int) * df['trade_cost'].fillna(0))
 
