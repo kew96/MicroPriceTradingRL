@@ -95,14 +95,12 @@ class OptimalExecutionHistory(History, ABC):
         trade_cols = ['trade_asset', 'trade_shares', 'trade_risk',
                       'trade_price', 'trade_cost', 'trade_penalty']
 
-        portfolios_data = [[getattr(i, col) for col in portfolio_cols] for i in portfolios]
-
-        data_in = []
-        for i in portfolios:
-            l = [getattr(i, col) for col in portfolio_cols]
-            if i.trade:
-                l += [getattr(i.trade, col[6:]) for col in trade_cols]
-            data_in.append(l)
+        data_in = list()
+        for portfolio in portfolios:
+            temp_data = [getattr(portfolio, col) for col in portfolio_cols]
+            if portfolio.trade:
+                temp_data += [getattr(portfolio.trade, col[6:]) for col in trade_cols]
+            data_in.append(temp_data)
 
         df = pd.DataFrame(columns=portfolio_cols + trade_cols, data=data_in)
 

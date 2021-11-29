@@ -320,6 +320,7 @@ class OptimalExecutionEnvironment(
         The general function for plotting and visualizing the data. Options include the following:
             `share_history`
             `risk_history`
+            `extensive_risk_history`
 
         Args:
             data: A string specifying the data to visualize
@@ -329,7 +330,7 @@ class OptimalExecutionEnvironment(
         options = [
             'share_history',
             'risk_history',
-            'extensive risk history'
+            'extensive_risk_history'
         ]
 
         if data == 'help':
@@ -406,10 +407,8 @@ class OptimalExecutionEnvironment(
 
             fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('risk_history.png'), format='png')
 
-        elif data == 'extensive risk history':
+        elif data == 'extensive_risk_history':
             df = self.portfolios_to_df(self.portfolio_history[-1])
-            shares_1 = np.cumsum(df['trade_shares'].fillna(0) * (df['trade_asset'].fillna(0) == 1).astype(int))
-            shares_2 = np.cumsum(df['trade_shares'].fillna(0) * (df['trade_asset'].fillna(0) == 2).astype(int))
             asset_1_total_cost = np.cumsum((df['trade_asset'].fillna(0) == 1).astype(int) * df['trade_cost'].fillna(0))
             asset_2_total_cost = np.cumsum((df['trade_asset'].fillna(0) == 2).astype(int) * df['trade_cost'].fillna(0))
 
@@ -422,6 +421,8 @@ class OptimalExecutionEnvironment(
                       xmin=0, xmax=self.steps, colors='lime', linewidth=2)
 
             ax.legend()
+
+            fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('extensive_risk_history.png', format='png'))
 
         elif data == 'state_frequency':
             """
