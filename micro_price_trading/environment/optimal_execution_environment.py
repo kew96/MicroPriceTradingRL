@@ -83,7 +83,7 @@ class OptimalExecutionEnvironment(
         self._next_target_risk = list(self._period_risk.values())[0]
 
         self.observation_space = MultiDiscrete([
-            len(self.mapping),  # Set of residual imbalance states
+            #len(self.mapping),  # Set of residual imbalance states
             self.must_trade_interval,  # Number of steps left till end of must_trade_period
             self._next_target_risk-list(self._period_risk.values())[1],  # Number of units of risk left to purchase
         ])
@@ -151,17 +151,20 @@ class OptimalExecutionEnvironment(
             else:
                 penalty_trade = None
 
+            # TODO is the order of logical update and reward correct? i think _next_target_risk updates too early
+            # TODO penalty trade doesn't seem to buy the correct amount of risk
             self.logical_update(trade, penalty_trade, True)
 
             reward = self.get_reward()
             self.prices_at_start = self.current_state[1:]
         else:
+            # TODO is the order of logical update and reward correct?
             self.logical_update(trade, None)
             reward = self.get_reward()
 
         self.terminal = self.state_index >= self.steps
 
-        observation = [self.current_state[0],  # Integer state
+        observation = [#self.current_state[0],  # Integer state
                        # Must subtract 1 so that these values start at 0, e.g. 5 - 99 % 5 - 1 = 0 and is the lowest
                        # this value can go. This seemed to solve an error I was throwing before but could be explored
                        self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
@@ -245,7 +248,7 @@ class OptimalExecutionEnvironment(
             shares_to_buy = risk_to_buy // min(self.risk_weights)
             asset_to_buy = np.argmin(self.risk_weights) + 1
         else:
-            shares_to_buy = risk_to_buy // max(self.risk_weights)
+            shares_to_buy = risk_to_buy // max(self.risk_weights) + 1  # TODO is the +1 necessary
             asset_to_buy = np.argmax(self.risk_weights) + 1
 
         return shares_to_buy if asset_to_buy == 2 else -shares_to_buy
@@ -309,7 +312,9 @@ class OptimalExecutionEnvironment(
         OptimalExecutionBroker._reset_broker(self)
         OptimalExecutionHistory._reset_history(self, self.current_state)
 
-        return jnp.asarray([self.current_state[0], 4, self.end_units_risk - self._next_target_risk])
+        return jnp.asarray([#self.current_state[0],
+                            4,
+                            self.end_units_risk - self._next_target_risk])
 
     def plot(
             self,

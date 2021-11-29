@@ -86,11 +86,16 @@ class OptimalExecutionHistory(History, ABC):
         return action_space
 
     # Portfolios to Data Frame
-    def portfolios_to_df(self, portfolios):
+    def portfolios_to_df(self, n=1):
+        """
 
+        :param n: the n-th most recent episode
+        :return: DataFrame with data from that episode (actions/observations/rewards)
+        """
+
+        portfolios = self._portfolios[-n]
         assert len(portfolios) > 0
-        c = portfolios[0]
-        portfolio_cols = [field.name for field in dataclasses.fields(c)]
+        portfolio_cols = [field.name for field in dataclasses.fields(portfolios[0])]
         trade_cols = ['trade_asset', 'trade_shares', 'trade_risk',
                       'trade_price', 'trade_cost', 'trade_penalty']
 
@@ -104,15 +109,15 @@ class OptimalExecutionHistory(History, ABC):
         df = pd.DataFrame(columns=portfolio_cols + trade_cols, data=data_in)
 
         period_risk_targets = pd.DataFrame({'time': self._period_risk.keys(),
-                                            'risk': 2340 - np.array(list(self._period_risk.values()))})
+                                            'risk': self.end_units_risk - np.array(list(self._period_risk.values()))})
 
         df = df.merge(period_risk_targets, how='outer')
         df['next_risk_target'] = df.risk.fillna(method='bfill')
         df['distance_to_next_risk_target'] = df['next_risk_target'] - df['total_risk']
 
-        df['rewards'] = [np.nan] + self._rewards[-1]
-        df['observations'] = [np.nan] + self._observations[-1]
-        df['raw_action'] = self._raw_actions[-1] + [np.nan]
+        df['rewards'] = [np.nan] + self._rewards[-n]
+        df['observations'] = [np.nan] + self._observations[-n]
+        df['raw_action'] = self._raw_actions[-n] + [np.nan]
         df['action'] = df['raw_action'] - self.action_space.n // 2
 
         return df
