@@ -13,6 +13,9 @@ def first_price_reward(current_portfolio: Portfolio, prices_at_start: np.ndarray
         # If we are forced to trade, take the total difference based on purchase price and number of shares
         diff += (prices_at_start[current_portfolio.penalty_trade.asset - 1] * current_portfolio.penalty_trade.shares
                  - current_portfolio.penalty_trade.cost)
+
+    # TODO sometimes a trade that is supposed to be a risk penalty says 'actual'
+    # TODO Note -10 * current_portfolio.trade.shares below to discourage
     if target_risk < current_portfolio.total_risk:
         # If we are over the total risk for this period, penalize if even more
         if current_portfolio.trade:

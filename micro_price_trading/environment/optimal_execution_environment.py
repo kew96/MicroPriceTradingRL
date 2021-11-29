@@ -240,7 +240,7 @@ class OptimalExecutionEnvironment(
         Returns: The correct action based on the remaining risk values
 
         """
-
+        # TODO output is incorrect although function logic seems right. see other TODO about order of logical update
         risk_to_buy = total_remaining - period_target
 
         # If 1 share of the max risk weight puts us over the risk for this period, we have to buy the smaller risk one
