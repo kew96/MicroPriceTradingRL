@@ -93,7 +93,7 @@ class OptimalExecutionHistory(History, ABC):
         :return: DataFrame with data from that episode (actions/observations/rewards)
         """
 
-        portfolios = self._portfolios[-n]
+        portfolios = self.portfolio_history[-n]
         assert len(portfolios) > 0
         portfolio_cols = [field.name for field in dataclasses.fields(portfolios[0])]
         trade_cols = ['trade_asset', 'trade_shares', 'trade_risk',

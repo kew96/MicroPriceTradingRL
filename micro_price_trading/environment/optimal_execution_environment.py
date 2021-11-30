@@ -85,7 +85,7 @@ class OptimalExecutionEnvironment(
         self.observation_space = MultiDiscrete([
             len(self.mapping),  # Set of residual imbalance states
             self.must_trade_interval,  # Number of steps left till end of must_trade_period
-            self._next_target_risk-list(self._period_risk.values())[1],  # Number of units of risk left to purchase
+            self._next_target_risk,  # Number of units of risk left to purchase
         ])
 
         # TODO self.action_space = MultiDiscrete([self.units_of_risk, self.units_of_risk/2])
@@ -120,13 +120,9 @@ class OptimalExecutionEnvironment(
 
         """
 
-        # TODO below should not be necessary, need MultiDiscrete action_space
         raw_action = np.array(action).item()
-        # if action > 0, buy asset 2
 
-        assert raw_action >= 0
-
-        remaining_risk = self.end_units_risk - self.current_portfolio.total_risk  # Total risk remaining to buy
+        total_risk = self.current_portfolio.total_risk
 
         if action:
             if action == 1:  # we want to buy asset 1
@@ -142,17 +138,15 @@ class OptimalExecutionEnvironment(
                     penalty_trade=False
                 )
 
-            penalty_trade = False  # TODO where to put this
-
-            remaining_risk -= trade.risk  # Remove the risk we just bought
+            total_risk += trade.risk  # Remove the risk we just bought
         else:
             trade = None
 
         if self.state_index in self._end_of_periods:
 
-            if remaining_risk > self._next_target_risk:
+            if total_risk < self._next_target_risk:
                 penalty_trade = self.trade(
-                    action=self._get_penalty_action(remaining_risk, self._next_target_risk),
+                    action=self._get_penalty_action(total_risk, self._next_target_risk),
                     current_state=self.current_state,
                     penalty_trade=True
                 )
@@ -173,9 +167,7 @@ class OptimalExecutionEnvironment(
                                            (0, 'pass'),
                                            [self.current_state[0],
                                             self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
-                                            self.end_units_risk
-                                            - self.current_portfolio.total_risk
-                                            - self._next_target_risk]
+                                            self._next_target_risk-self.current_portfolio.total_risk]
                                            )
                     self.logical_update(None, None)
 
@@ -186,7 +178,7 @@ class OptimalExecutionEnvironment(
                        # this value can go. This seemed to solve an error I was throwing before but could be explored
                        self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
                        # Again, this has a minimum of 0 now and allows us to guarantee the size of the observation space
-                       self.end_units_risk - self.current_portfolio.total_risk - self._next_target_risk]
+                       max(self._next_target_risk-self.current_portfolio.total_risk, 0)]
 
         self._update_debugging(raw_action, reward, observation)
 
@@ -228,7 +220,7 @@ class OptimalExecutionEnvironment(
         return self.reward_func(
             self.current_portfolio,
             self.prices_at_start,
-            self.end_units_risk-self._next_target_risk
+            self._next_target_risk
         )
 
     def _calculate_period_risk_targets(self):
@@ -240,10 +232,10 @@ class OptimalExecutionEnvironment(
 
         """
         risk_per_period = self.end_units_risk // len(self._end_of_periods)
-        risk_values = self.end_units_risk - np.cumsum([risk_per_period] * len(self._end_of_periods))
+        risk_values = np.cumsum([risk_per_period] * len(self._end_of_periods))
         return dict(zip(self._end_of_periods, risk_values))
 
-    def _get_penalty_action(self, total_remaining, period_target):
+    def _get_penalty_action(self, current_total, period_target):
         """
         Calculates the correct action based off the period's target risk value and the total remaining risk at the end
         of the current time step. We choose to buy the asset with the highest `risk_weighting`. Ideally, this will
@@ -251,14 +243,14 @@ class OptimalExecutionEnvironment(
         buy than the weighting of the max asset, we must buy the lower risk asset.
 
         Args:
-            total_remaining: The total remaining risk to buy over the entire simulation
+            current_total: The total remaining risk to buy over the entire simulation
             period_target: The target level to be at for the end of the period
 
         Returns: The correct action based on the remaining risk values
 
         """
         # TODO output is incorrect although function logic seems right. see other TODO about order of logical update
-        risk_to_buy = total_remaining - period_target
+        risk_to_buy = period_target - current_total
 
         # If 1 share of the max risk weight puts us over the risk for this period, we have to buy the smaller risk one
         if risk_to_buy < max(self.risk_weights):
@@ -331,7 +323,7 @@ class OptimalExecutionEnvironment(
 
         return jnp.asarray([self.current_state[0],
                             4,
-                            self.end_units_risk - self._next_target_risk])
+                            self._next_target_risk])
 
     def plot(
             self,
