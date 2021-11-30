@@ -39,7 +39,7 @@ class OptimalExecutionEnvironment(
             max_purchase: int = 100,
             steps: int = TWENTY_SECOND_DAY,
             end_units_risk: int = 100,
-            must_trade_interval: int = 5,
+            must_trade_interval: int = 10,
             seed: Optional[int] = None,
     ):
         if start_allocation is None:
@@ -72,6 +72,13 @@ class OptimalExecutionEnvironment(
         self._max_episode_steps = 10_000
         # List of the times that are the end of each trading interval
         self._end_of_periods = np.arange(self.must_trade_interval, self.steps + 1, self.must_trade_interval).tolist()
+        # Amount of risk needed to buy per must_trade_interval
+        self.risk_per_interval = int(self.end_units_risk / (self.steps / self.must_trade_interval))
+        # TODO we should discuss the assertions below
+        assert self.end_units_risk % (self.steps / self.must_trade_interval) == 0, 'Can only purchase integer ' \
+                                                                                   'amount of risk per interval'
+        for i in self.risk_weights:
+            assert self.risk_per_interval % i == 0, 'Can only purchase integer number of shares'
 
         assert end_units_risk >= len(self._end_of_periods), f'end_units_risk = {end_units_risk}, must_trade_interval ' \
                                                             f'= {must_trade_interval}, steps = {steps} but must ' \
@@ -127,13 +134,13 @@ class OptimalExecutionEnvironment(
         if action:
             if action == 1:  # we want to buy asset 1
                 trade = self.trade(
-                    action=-1,  # buy 1 share of asset 1
+                    action=-int(self.risk_per_interval/2),  # buy 1 share of asset 1
                     current_state=self.current_state,
                     penalty_trade=False
                 )
             else:  # we want to buy asset 2
                 trade = self.trade(
-                    action=2,  # buy two shares of asset 2
+                    action=self.risk_per_interval,  # buy two shares of asset 2
                     current_state=self.current_state,
                     penalty_trade=False
                 )
@@ -157,6 +164,9 @@ class OptimalExecutionEnvironment(
             reward = self.get_reward()
             self.prices_at_start = self.current_state[1:]
         else:
+            # TODO there is a bug somewhere here.
+            #  for _ in range(self.must_trade_interval - self.state_index % self.must_trade_interval - 1):
+            #  is not properly padding forced no trade
             self.logical_update(trade, None)
             reward = self.get_reward()
             if trade:
@@ -164,7 +174,7 @@ class OptimalExecutionEnvironment(
                     if self.state_index >= self.steps - 2:
                         break
                     self._update_debugging(0,
-                                           (0, 'pass'),
+                                           (0, 'forced no trade'),
                                            [self.current_state[0],
                                             self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
                                             self._next_target_risk-self.current_portfolio.total_risk]
@@ -346,7 +356,8 @@ class OptimalExecutionEnvironment(
             'share_history',
             'risk_history',
             'extensive_risk_history',
-            'asset_paths'
+            'asset_paths',
+            'analyze_rewards'
         ]
 
         if data == 'help':
@@ -465,6 +476,29 @@ class OptimalExecutionEnvironment(
             fig.suptitle('Asset Paths', fontsize=14)
 
             fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('asset_paths.png'), format='png')
+
+        elif data == 'analyze_rewards':
+            # TODO didnt finish this plot
+
+            fig, axs = plt.subplots(2, figsize=(15, 13))
+
+            trade_rewards = []
+            penalty_trade_rewards = []
+            for i in self._rewards[-num_paths]:
+                if i[1] == 'actual':
+                    trade_rewards += [i[0]]
+                elif i[1] == 'under risk penalty':
+                    penalty_trade_rewards += [i[0]]
+
+            axs[0].hist(trade_rewards, bins= 10)
+            # axs[0].title('Distribution of Rewards for Trades')
+            axs[1].hist(penalty_trade_rewards, bins = 10)
+            # axs[1].title('Distribution of Rewards for Trades')
+
+            fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('analyze_rewards.png'), format='png')
+
+
+
 
         elif data == 'state_frequency':
             """
