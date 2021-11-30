@@ -364,7 +364,7 @@ class OptimalExecutionEnvironment(
             fig, axs = plt.subplots(figsize=(15, 10))
 
             for idx in range(-1, max(-num_paths - 1, -MAX_PATHS), -1):
-                axs.plot(self.share_history[idx, :, 1], self.share_history[idx, :, 0], label=f'Path {idx * -1}')
+                axs.plot(self.share_history[idx, :, 0], self.share_history[idx, :, 1], label=f'Path {-idx}')
             axs.set_ylabel('Asset 2', fontsize=14)
             axs.set_xlabel('Asset 1', fontsize=14)
 
