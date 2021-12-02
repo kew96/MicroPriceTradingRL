@@ -91,7 +91,7 @@ class OptimalExecutionEnvironment(
 
         self.observation_space = MultiDiscrete([
             len(self.mapping),  # Set of residual imbalance states
-            self.must_trade_interval,  # Number of steps left till end of must_trade_period
+            # self.must_trade_interval,  # Number of steps left till end of must_trade_period
             self._next_target_risk,  # Number of units of risk left to purchase
         ])
 
@@ -186,7 +186,7 @@ class OptimalExecutionEnvironment(
         observation = [self.current_state[0],  # Integer state
                        # Must subtract 1 so that these values start at 0, e.g. 5 - 99 % 5 - 1 = 0 and is the lowest
                        # this value can go. This seemed to solve an error I was throwing before but could be explored
-                       self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
+                       # self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
                        # Again, this has a minimum of 0 now and allows us to guarantee the size of the observation space
                        max(self._next_target_risk-self.current_portfolio.total_risk, 0)]
 
@@ -332,7 +332,7 @@ class OptimalExecutionEnvironment(
         OptimalExecutionHistory._reset_history(self, self.current_state)
 
         return jnp.asarray([self.current_state[0],
-                            4,
+                            # 4,
                             self._next_target_risk])
 
     def plot(
