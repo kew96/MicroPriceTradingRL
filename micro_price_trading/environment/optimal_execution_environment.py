@@ -308,7 +308,7 @@ class OptimalExecutionEnvironment(
             shares=new_shares,
             prices=tuple(self.current_state[1:]),
             total_risk=new_risk,
-            res_imbalance_state=self._reverse_mapping[self.current_state[0]],
+            res_imbalance_state=self._reverse_mapping[self.current_state[0]],  # TODO: Wrong current state? 47 res bins
             trade=trade,
             penalty_trade=penalty_trade
         )
