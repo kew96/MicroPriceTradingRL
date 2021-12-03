@@ -2,11 +2,11 @@ import unittest
 
 import numpy as np
 
-from micro_price_trading.utils import *
+from micro_price_trading.reward_functions import *
 from micro_price_trading.history.optimal_execution_history import Portfolio, Trade
 
 
-class TestUtils(unittest.TestCase):
+class TestRewardFunctions(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:

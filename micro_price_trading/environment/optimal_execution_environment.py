@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.legend_handler import HandlerTuple
 
-from micro_price_trading.utils import first_price_reward
+from micro_price_trading.reward_functions import first_price_reward
 from micro_price_trading.history.history import Allocation
 from micro_price_trading.preprocessing.preprocess import Data
 from micro_price_trading.history.optimal_execution_history import Portfolio
@@ -34,7 +34,7 @@ class OptimalExecutionEnvironment(
             data: Data,
             risk_weights: Tuple[int, int],
             trade_penalty: Union[int, float],
-            reward_func: Callable = first_price_reward,  # Moved this to utils.py, easy way to store an useful functions
+            reward_func: Callable = first_price_reward,  # Moved this to reward_functions.py, easy way to store an useful functions
             start_allocation: Allocation = None,
             max_purchase: int = 100,
             steps: int = TWENTY_SECOND_DAY,
