@@ -70,11 +70,18 @@ class TWAP:
         return np.array(avg_prices_1), np.array(avg_prices_2)
 
     def continuous_twap(self, threshold=0.15, verbose=False):
-        def _starmap_continuous_twap(data, inner_threshold, asset1_buy_prices, asset2_buy_prices):
+        def _starmap_continuous_twap(
+                data,
+                inner_threshold,
+                steps_in_day,
+                trade_interval,
+                asset1_buy_prices,
+                asset2_buy_prices
+        ):
             intervals = list()
 
-            for idx in range(self.data.shape[1]//self.trade_interval+1):
-                new_interval = range(idx*self.trade_interval, min((idx+1)*self.trade_interval, self.steps_in_day))
+            for idx in range(data.shape[1]//trade_interval+1):
+                new_interval = range(idx*trade_interval, min((idx+1)*trade_interval, steps_in_day))
                 if new_interval:
                     intervals.append(new_interval)
 
@@ -129,6 +136,8 @@ class TWAP:
 
         part_optimal = partial(
             _starmap_continuous_twap,
+            steps_in_day=self.steps_in_day,
+            trade_interval=self.trade_interval,
             asset1_buy_prices=asset1_prices,
             asset2_buy_prices=asset2_prices
         )
