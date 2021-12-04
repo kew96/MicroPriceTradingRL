@@ -27,7 +27,6 @@ class Preprocess:
     def __init__(
             self,
             data: Union[str, PosixPath],
-            transition_matrix: Optional[str] = None,
             res_bin: int = 6,
             imb1_bin: int = 3,
             imb2_bin: int = 3,
@@ -51,6 +50,10 @@ class Preprocess:
         self.__imb2_bin = imb2_bin
         self.__quantile = quantile
         self.__tick_shift = tick_shift
+
+        self.__res_retbin = None
+        self.__imb1_retbin = None
+        self.__imb2_retbin = None
 
     def _process_data(self, out_of_sample=None):
         self.__data = self._preprocess(self.__data)
@@ -121,20 +124,75 @@ class Preprocess:
     def _quantile_bin(self, data):
         data = data.copy()
 
-        data['self.__res_bin'] = pd.qcut(data['residuals'], self.__res_bin, labels=False)
-        data['imb1_bin'] = pd.qcut(data['imb1'], self.__imb1_bin, labels=False)
-        data['imb2_bin'] = pd.qcut(data['imb2'], self.__imb2_bin, labels=False)
+        res_retbin = pd.qcut(data['residuals'], self.__res_bin, labels=False, retbins=True)[-1]
+        res_retbin[0] = -np.Inf
+        res_retbin[-1] = np.Inf
+        imb1_retbin = pd.qcut(data['imb1'], self.__imb1_bin, labels=False, retbins=True)[-1]
+        imb1_retbin[0] = -np.Inf
+        imb1_retbin[-1] = np.Inf
+        imb2_retbin = pd.qcut(data['imb2'], self.__imb2_bin, labels=False, retbins=True)[-1]
+        imb2_retbin[0] = -np.Inf
+        imb2_retbin[-1] = np.Inf
+
+        self.res_retbin = res_retbin
+        self.imb1_retbin = imb1_retbin
+        self.imb2_retbin = imb2_retbin
+
+        data['res_bin'] = pd.qcut(data['residuals'], self.res_retbin, labels=False)
+        data['imb1_bin'] = pd.qcut(data['imb1'], self.imb1_retbin, labels=False)
+        data['imb2_bin'] = pd.qcut(data['imb2'], self.imb2_retbin, labels=False)
 
         return data
 
     def _uniform_bin(self, data):
         data = data.copy()
 
-        data['self.__res_bin'] = pd.cut(data['residuals'], self.__res_bin, labels=False)
-        data['imb1_bin'] = pd.cut(data['imb1'], self.__imb1_bin, labels=False)
-        data['imb2_bin'] = pd.cut(data['imb2'], self.__imb2_bin, labels=False)
+        res_retbin = pd.cut(data['residuals'], self.__res_bin, labels=False, retbins=True)[-1]
+        res_retbin[0] = -np.Inf
+        res_retbin[-1] = np.Inf
+        imb1_retbin = pd.cut(data['imb1'], self.__imb1_bin, labels=False, retbins=True)[-1]
+        imb1_retbin[0] = -np.Inf
+        imb1_retbin[-1] = np.Inf
+        imb2_retbin = pd.cut(data['imb2'], self.__imb2_bin, labels=False, retbins=True)[-1]
+        imb2_retbin[0] = -np.Inf
+        imb2_retbin[-1] = np.Inf
+
+        self.res_retbin = res_retbin
+        self.imb1_retbin = imb1_retbin
+        self.imb2_retbin = imb2_retbin
+
+        data['res_bin'] = pd.cut(data['residuals'], self.res_retbin, labels=False)
+        data['imb1_bin'] = pd.cut(data['imb1'], self.imb1_retbin, labels=False)
+        data['imb2_bin'] = pd.cut(data['imb2'], self.imb2_retbin, labels=False)
 
         return data
+
+    @property
+    def res_retbin(self):
+        return self.__res_retbin
+
+    @property
+    def imb1_retbin(self):
+        return self.__imb1_retbin
+
+    @property
+    def imb2_retbin(self):
+        return self.__imb2_retbin
+
+    @res_retbin.setter
+    def res_retbin(self, value):
+        if self.__res_retbin is None:
+            self.__res_retbin = value
+
+    @imb1_retbin.setter
+    def imb1_retbin(self, value):
+        if self.__imb1_retbin is None:
+            self.__imb1_retbin = value
+
+    @imb2_retbin.setter
+    def imb2_retbin(self, value):
+        if self.__imb2_retbin is None:
+            self.__imb2_retbin = value
 
     @staticmethod
     def _build_states(data):
