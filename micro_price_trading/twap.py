@@ -13,9 +13,11 @@ class TWAP:
             self,
             trade_interval,
             steps_in_day=TWENTY_SECOND_DAY,
+            buy=True,
     ):
         self.trade_interval = trade_interval
         self.steps_in_day = steps_in_day
+        self.buy = buy
 
         self.q_values = pd.read_csv(DATA_PATH.joinpath('q_values_9_27.csv'), index_col=0)
         with open(OPTIMAL_EXECUTION_RL.joinpath('simulations.npy'), 'rb') as file:
@@ -52,8 +54,12 @@ class TWAP:
         )
 
         for sim in self.data:
-            q_values_binary = (self.q_values.iloc[sim[indices_to_buy_at, 0]]['Long/Short'] >
-                               self.q_values.iloc[sim[indices_to_buy_at, 0]]['Short/Long']).values
+            if self.buy:
+                q_values_binary = (self.q_values.iloc[sim[indices_to_buy_at, 0]]['Long/Short'] >
+                                   self.q_values.iloc[sim[indices_to_buy_at, 0]]['Short/Long']).values
+            else:
+                q_values_binary = (self.q_values.iloc[sim[indices_to_buy_at, 0]]['Long/Short'] <
+                                   self.q_values.iloc[sim[indices_to_buy_at, 0]]['Short/Long']).values
 
             indices_to_buy_asset_1 = indices_to_buy_at[np.where(q_values_binary)[0]]
             indices_to_buy_asset_2 = indices_to_buy_at[np.where(~q_values_binary)[0]]
@@ -79,12 +85,20 @@ class TWAP:
                     subset = sim[interval, :]
                     for idx, entry in enumerate(subset):
                         q_vals = self.q_values.iloc[int(entry[0])].copy()
-                        choice = np.argmax(q_vals)
-                        if choice == 0 and q_vals[0]-q_vals[1] > inner_threshold:
+                        if self.buy:
+                            choice = np.argmax(q_vals)
+                            condition1 = q_vals[0]-q_vals[1] > inner_threshold
+                            condition2 = q_vals[1]-q_vals[0] > inner_threshold
+                        else:
+                            choice = np.argmin(q_vals)
+                            condition1 = q_vals[0] - q_vals[1] < -inner_threshold
+                            condition2 = q_vals[1] - q_vals[0] < -inner_threshold
+
+                        if choice == 0 and condition1:
                             a1_buys.extend([True]+[False]*(self.trade_interval - idx-1))
                             a2_buys.extend([False]*(self.trade_interval - idx))
                             break
-                        elif choice == 1 and q_vals[1]-q_vals[0] > inner_threshold:
+                        elif choice == 1 and condition2:
                             a1_buys.extend([False]*(self.trade_interval - idx))
                             a2_buys.extend([True]+[False]*(self.trade_interval - idx-1))
                             break
@@ -92,7 +106,10 @@ class TWAP:
                             a1_buys.append(False)
                             a2_buys.append(False)
                     if a1_buys[-1] + a2_buys[-1] < 1:
-                        choice = np.argmax(self.q_values.iloc[int(entry[0]), 1:])
+                        if self.buy:
+                            choice = np.argmax(self.q_values.iloc[int(entry[0]), 1:])
+                        else:
+                            choice = np.argmin(self.q_values.iloc[int(entry[0]), 1:])
                         if choice == 0:
                             a1_buys[-1] = True
                         else:
