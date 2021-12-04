@@ -127,6 +127,7 @@ class TWAP:
 
         for p in all_processes:
             p.join()
+            p.close()
 
         asset1_prices = np.array(asset1_prices, dtype=object)
         asset2_prices = np.array(asset2_prices, dtype=object)
