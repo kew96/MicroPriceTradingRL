@@ -6,6 +6,7 @@ import pandas as pd
 
 from micro_price_trading.config import DATA_PATH, OPTIMAL_EXECUTION_RL, TWENTY_SECOND_DAY
 
+from micro_price_trading import Preprocess
 
 class TWAP:
 
@@ -14,14 +15,28 @@ class TWAP:
             trade_interval,
             steps_in_day=TWENTY_SECOND_DAY,
             buy=True,
+            q_values_file_name=None,
+            out_of_sample_file_name=None
     ):
         self.trade_interval = trade_interval
         self.steps_in_day = steps_in_day
         self.buy = buy
 
-        self.q_values = pd.read_csv(DATA_PATH.joinpath('q_values_9_27.csv'), index_col=0)
-        with open(OPTIMAL_EXECUTION_RL.joinpath('simulations.npy'), 'rb') as file:
-            self.data = np.load(file)
+        if q_values_file_name:
+            self.q_values = pd.read_csv(DATA_PATH.joinpath(q_values_file_name), index_col=0)
+        else:
+            self.q_values = pd.read_csv(DATA_PATH.joinpath('q_values_9_27.csv'), index_col=0)
+
+        if out_of_sample_file_name:
+            raw = Preprocess('TBT_TBF__9_27_data.csv', res_bin=7)
+            d_in_sample, d_out_of_sample = raw.process(out_of_sample=out_of_sample_file_name)
+            self.data = np.reshape(d_out_of_sample.data.values(),
+                                   1,
+                                   d_out_of_sample.data.shape[0],
+                                   d_out_of_sample.data.shape[1])
+        else:
+            with open(OPTIMAL_EXECUTION_RL.joinpath('simulations.npy'), 'rb') as file:
+                self.data = np.load(file)
 
     def base_twap(self, asset):
         indices_to_buy_at = np.array(
@@ -125,7 +140,7 @@ class TWAP:
                 asset1_buy_prices.append(sim[a1_buys[:len(sim)], 1])
                 asset2_buy_prices.append(sim[a2_buys[:len(sim)], 2])
 
-        num_processors = min(cpu_count() - 1, 12)
+        num_processors = min(cpu_count() - 1, 12, self.data.shape[0])
 
         data_splits = [arr.copy() for arr in np.array_split(self.data, num_processors)]
         thresholds = [threshold] * num_processors
