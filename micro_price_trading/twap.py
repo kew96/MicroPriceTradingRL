@@ -42,7 +42,7 @@ class TWAP:
         else:
             self.steps_in_day = steps_in_day
             with open(OPTIMAL_EXECUTION_RL.joinpath(simulations_file), 'rb') as file:
-                self.data = np.load(file)
+                self.data = np.load(file, allow_pickle=True)
 
     def base_twap(self, asset):
         indices_to_buy_at = np.array(
