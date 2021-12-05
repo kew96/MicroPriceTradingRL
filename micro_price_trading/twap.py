@@ -6,36 +6,42 @@ import pandas as pd
 
 from micro_price_trading.config import DATA_PATH, OPTIMAL_EXECUTION_RL, TWENTY_SECOND_DAY
 
-from micro_price_trading import Preprocess
+from micro_price_trading import Preprocess, TwoAssetSimulation
+
 
 class TWAP:
 
     def __init__(
             self,
             trade_interval,
+            simulations_file='TBT_TBF_9_27_sims.npy',
             steps_in_day=TWENTY_SECOND_DAY,
             buy=True,
-            q_values_file_name=None,
+            q_values_file_name='q_values_9_27.csv',
+            in_sample_file_name=None,
             out_of_sample_file_name=None
     ):
         self.trade_interval = trade_interval
-        self.steps_in_day = steps_in_day
         self.buy = buy
 
-        if q_values_file_name:
-            self.q_values = pd.read_csv(DATA_PATH.joinpath(q_values_file_name), index_col=0)
-        else:
-            self.q_values = pd.read_csv(DATA_PATH.joinpath('q_values_9_27.csv'), index_col=0)
+        self.q_values = pd.read_csv(DATA_PATH.joinpath(q_values_file_name), index_col=0)
 
         if out_of_sample_file_name:
-            raw = Preprocess('TBT_TBF__9_27_data.csv', res_bin=7)
+            raw = Preprocess(in_sample_file_name, res_bin=7)
             d_in_sample, d_out_of_sample = raw.process(out_of_sample=out_of_sample_file_name)
-            self.data = np.reshape(d_out_of_sample.data.values(),
-                                   1,
-                                   d_out_of_sample.data.shape[0],
-                                   d_out_of_sample.data.shape[1])
+            sim = TwoAssetSimulation(d_out_of_sample, steps=3)
+
+            subset = d_out_of_sample.data[['state', 'mid1', 'mid2']].copy()
+            subset.loc[:, 'state'] = subset.loc[:, 'state'].replace(sim.mapping)
+
+            self.data = np.reshape(
+                subset.values,
+                (1, subset.shape[0], subset.shape[1])
+            )
+            self.steps_in_day = self.data.shape[1] - 1
         else:
-            with open(OPTIMAL_EXECUTION_RL.joinpath('simulations.npy'), 'rb') as file:
+            self.steps_in_day = steps_in_day
+            with open(OPTIMAL_EXECUTION_RL.joinpath(simulations_file), 'rb') as file:
                 self.data = np.load(file)
 
     def base_twap(self, asset):
