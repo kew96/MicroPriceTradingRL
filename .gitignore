@@ -144,4 +144,4 @@ logdir
 log.csv
 TEST.*
 Untitled.*
-simulations.npy
+*.npy
