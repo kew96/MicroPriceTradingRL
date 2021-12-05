@@ -199,7 +199,7 @@ class Preprocess:
         data = data.copy()
 
         data['state'] = (
-                data['self.__res_bin'].astype(str) +
+                data['res_bin'].astype(str) +
                 data['imb1_bin'].astype(str) +
                 data['imb2_bin'].astype(str) +
                 data['mid1_diff_bin'].astype(str) +
