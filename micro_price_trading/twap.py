@@ -24,7 +24,7 @@ class TWAP:
         self.trade_interval = trade_interval
         self.buy = buy
 
-        self.q_values = pd.read_csv(DATA_PATH.joinpath(q_values_file_name), index_col=0)
+        self.q_values = pd.read_csv(DATA_PATH.joinpath(q_values_file_name))
 
         if out_of_sample_file_name:
             raw = Preprocess(in_sample_file_name, res_bin=7)
