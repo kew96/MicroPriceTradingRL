@@ -21,7 +21,7 @@ def portfolio_value(current_portfolio, last_portfolio, action, last_state, curre
 
 class Env(gym.Env, TwoAssetSimulation):
     """
-    :parameter data: raw data from Yahoo Finance (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
+    :parameter data: raw data from Interactive Brokers (e.g. see SH_SDS_data_4.csv or can be of class data from preprocess.py)
     :parameter prob: transition matrix between states. optional if using class data
     :parameter fixed_sell_cost: trading cost associated with selling
     :parameter fixed_buy_cost: trading cost associated with buying
