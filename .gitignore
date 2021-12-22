@@ -143,5 +143,5 @@ summary
 logdir
 log.csv
 TEST.*
-Untitled.ipynb
+Untitled.*
 *.npy
