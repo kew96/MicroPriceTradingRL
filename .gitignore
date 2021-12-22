@@ -142,4 +142,6 @@ cython_debug/
 summary
 logdir
 log.csv
-TEST.ipynb
+TEST.*
+Untitled.*
+*.npy

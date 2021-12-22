@@ -1,0 +1,9 @@
+setuptools~=52.0.0
+pandas~=1.1.2
+numpy~=1.19.2
+statsmodels~=0.12.2
+gym~=0.17.2
+jax~=0.2.20
+matplotlib~=3.4.3
+scipy~=1.7.1
+tqdm~=4.48.2
