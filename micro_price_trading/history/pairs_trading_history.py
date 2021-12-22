@@ -3,9 +3,7 @@ from typing import List, Optional, Union
 import numpy as np
 import pandas as pd
 
-from .history import History
-
-Allocation = Optional[List[Union[float, int]]]
+from .history import History, Allocation
 
 
 class PairsTradingHistory(History):
@@ -50,7 +48,7 @@ class PairsTradingHistory(History):
             max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
                 Short/Long at any time, at most
         """
-        History.__init__(self, max_position)
+        History.__init__(self)
 
         if start_allocation is None:
             start_allocation = [1000, -500]

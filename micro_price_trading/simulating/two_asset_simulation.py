@@ -58,7 +58,7 @@ class TwoAssetSimulation(Simulation):
         simu = pd.DataFrame(simu)
         simu.columns = ['states', 'mid_1', 'mid_2']
         simu.states = simu.states.replace(self.mapping)
-        return simu
+        return simu.values
 
     def _get_mapping(self):
         rows = []

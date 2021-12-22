@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
+from typing import Optional, Tuple, Union
 
 import numpy as np
+
+Allocation = Optional[Tuple[Union[float, int]]]
 
 
 class History(ABC):
@@ -22,10 +25,6 @@ class History(ABC):
     @staticmethod
     @abstractmethod
     def _generate_readable_action_space(*args, **kwargs):
-        raise NotImplementedError
-
-    @abstractmethod
-    def _update_history(self, *args, **kwargs):
         raise NotImplementedError
 
     @abstractmethod

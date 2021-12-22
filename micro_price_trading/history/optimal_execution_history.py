@@ -1,187 +1,202 @@
-from typing import List, Optional, Union
+from abc import ABC
+from dataclasses import dataclass
+from typing import Tuple, Optional, Union
 
 import numpy as np
+import jax.numpy as jnp
+
+from .history import History, Allocation
+import dataclasses
 import pandas as pd
 
-from .history import History
 
-Allocation = Optional[List[Union[float, int]]]
+@dataclass
+class Trade:
+    asset: int
+    shares: int
+    risk: int
+    price: float
+    cost: float
+    penalty: bool = False
 
 
-class OptimalExecutionHistory(History):
+@dataclass
+class Portfolio:
+    time: int
+    cash: float
+    shares: Tuple[int, int]
+    prices: Tuple[float, float]
+    total_risk: int
+    res_imbalance_state: str
+    trade: Optional[Trade] = None
+    penalty_trade: Optional[Trade] = None
+
+
+class OptimalExecutionHistory(History, ABC):
 
     def __init__(
             self,
-            current_state: pd.Series,
+            max_actions: int,
+            max_steps: int,
+            start_state: np.array,
+            start_cash: Union[int, float],
             start_allocation: Allocation = None,
-            reverse_mapping: Optional[dict] = None,
-            max_position: int = 10
+            start_risk: Union[int, float] = 0,
+            reverse_mapping: Optional[dict] = None
     ):
+
         if start_allocation is None:
-            start_allocation = [1000, -500]
+            start_allocation = (0, 0)
 
-        self.portfolio = [-sum(start_allocation), *start_allocation]
-        self._portfolio_history = [[self.portfolio]]
+        self._expected_entries = max_steps + 1
 
-        self.portfolio_value = sum(self.portfolio)
-        self._portfolio_values_history = [[self.portfolio_value]]
+        self.start_cash = start_cash
+        self.start_risk = start_risk
+        self.start_allocation = start_allocation
 
-        self.shares = [start_allocation[0]/current_state[1], start_allocation[1]/current_state[2]]
-        self._share_history = [[self.shares]]
+        self.current_portfolio = Portfolio(
+            time=0,
+            cash=start_cash,
+            shares=start_allocation,
+            prices=(start_state[1], start_state[2]),
+            total_risk=start_risk,
+            res_imbalance_state=reverse_mapping[start_state[0]]
+        )
 
-        self.position = 1
-        self._positions_history = [[self.position]]
-
-        # First trade is always at time 0
-        self._trade_indices_history = [[0]]
-
-        # Always start long/short
-        self._long_short_indices_history = [[0]]
-
-        self._short_long_indices_history = [[]]
-
-        # dict: keys are states, values are lists of actions taken in that state
-        self.num_trades = [dict()]
-        # self._action_title = {
-        #     -2: "Long Asset 1 / Short Asset 2",
-        #     -1: "Short Asset 1 / Long Asset 2",
-        #     0: "Hold",
-        #     1: "Tried Long/Short but already Long/Short",
-        #     2: "Tried Short/Long but already Short/Long"
-        # }
-        self._action_title = dict()
-        for i in range(-max_position, max_position + 1):  # TODO: Change to (-max position, max position + 1)
-            if i < 0:
-                self._action_title[i] = f'Short/Long {abs(i)}'
-            elif i > 0:
-                self._action_title[i] = f'Long/Short {abs(i)}'
-            else:
-                self._action_title[i] = 'Flat'
-
-        # USED FOR RESET ONLY
-        self._start_allocation = start_allocation
-
-        # NEEDED FOR UPDATING DICTIONARY
+        self._portfolios = [[self.current_portfolio]]
+        self._rewards = [[]]
+        self._observations = [[]]
+        self._raw_actions = [[]]
         self.__reverse_mapping = reverse_mapping
 
-    @property
-    def portfolio_history(self):
-        return np.array(self._portfolio_history)
+        History.__init__(self, max_actions=max_actions)
 
-    @property
-    def portfolio_values_history(self):
-        return np.array(self._portfolio_values_history)
+    def _generate_readable_action_space(self, max_actions):
+        action_space = dict()
 
-    @property
-    def share_history(self):
-        return np.array(self._share_history)
-
-    @property
-    def positions_history(self):
-        return np.array(self._positions_history)
-
-    @property
-    def trade_indices_history(self):
-        return np.array(self._trade_indices_history)
-
-    @property
-    def long_short_indices_history(self):
-        return np.array(self._long_short_indices_history)
-
-    @property
-    def short_long_indices_history(self):
-        return np.array(self._short_long_indices_history)
-
-    @staticmethod
-    def _update_portfolio(portfolio, shares, state):
-        return [
-            portfolio[0],
-            shares[0]*state[1],
-            shares[1]*state[2]
-        ]
-
-    def _update_histories(
-            self,
-            portfolio: List[int],
-            shares: List[float],
-            position: int,
-            steps: int = 1,
-            trade_index: Optional[int] = None,
-            long_short: Optional[bool] = None,
-            period_prices: Optional[pd.DataFrame] = None
-    ):
-        if steps == 1:
-            self._portfolio_history[-1].append(portfolio)
-            self._portfolio_values_history[-1].append(sum(portfolio))
-            self._share_history[-1].append(shares)
-            self._positions_history[-1].append(position)
-        else:
-            amounts = period_prices * shares
-            portfolios = [
-                [portfolio[0], asset1, asset2] for asset1, asset2 in amounts.itertuples(index=False)
-            ]
-
-            self._portfolio_history[-1].extend(portfolios)
-            self._portfolio_values_history[-1].extend(map(sum, portfolios))
-
-            self._share_history[-1].extend([shares]*steps)
-            self._positions_history[-1].extend([position]*steps)
-
-        if trade_index:
-            self._trade_indices_history[-1].append(trade_index)
-            if long_short:
-                self._long_short_indices_history[-1].append(trade_index)
-            elif not long_short:
-                self._short_long_indices_history[-1].append(trade_index)
+        mid = max_actions // 2
+        for action in range(max_actions):
+            if action < mid:
+                action_space[action] = f'Buy {mid-action} shares of asset 1'
+            elif action > mid:
+                action_space[action] = f'Buy {action-mid} shares of asset 2'
             else:
-                raise Exception(
-                    'When trading, trade_index must be of type `int` and long_short must be of type bool.'
-                    f'Received ({type(trade_index)}, {type(long_short)})'
-                )
+                action_space[action] = 'Hold constant'
 
-    def _collapse_num_trades_dict(
-            self,
-            num_env_to_analyze: int = 1
-    ):
+        return action_space
+
+    # Portfolios to Data Frame
+    def portfolios_to_df(self, n=1):
         """
-        This combines the last num_env_to_analyze dictionaries in self.num_trades into one dictionary
-        Every time env.reset() gets called, a new entry in self.num_trades is appended
-        :param num_env_to_analyze: integer representing number of dictionaries in self.num_trades to be combined
-        :return:
+
+        :param n: the n-th most recent episode
+        :return: DataFrame with data from that episode (actions/observations/rewards)
         """
-        collapsed = self.num_trades[-num_env_to_analyze]
-        for i in range(len(self.num_trades) - num_env_to_analyze + 1, len(self.num_trades)):
-            for k, v in self.num_trades[i].items():
-                current = collapsed.get(k, []) + v
-                collapsed[k] = current
-        return collapsed
 
-    def _update_num_trades(
-            self,
-            action: int,
-            current_state: pd.Series
-    ):
-        reverse_mapped_state = self.__reverse_mapping[current_state[0]]
-        num_trades_last = self.num_trades[-1].get(reverse_mapped_state, []) + [action]
-        self.num_trades[-1][reverse_mapped_state] = num_trades_last
+        portfolios = self.portfolio_history[-n]
+        assert len(portfolios) > 0
+        portfolio_cols = [field.name for field in dataclasses.fields(portfolios[0])]
+        trade_cols = ['trade_asset', 'trade_shares', 'trade_risk',
+                      'trade_price', 'trade_cost', 'trade_penalty']
 
-    def _reset_env_history(self, current_state):
-        self.portfolio = [-sum(self._start_allocation), *self._start_allocation]
-        self._portfolio_history.append([self.portfolio])
+        data_in = list()
+        for portfolio in portfolios:
+            temp_data = [getattr(portfolio, col) for col in portfolio_cols]
+            if portfolio.trade:
+                temp_data += [getattr(portfolio.trade, col[6:]) for col in trade_cols]
+            data_in.append(temp_data)
 
-        self.portfolio_value = sum(self.portfolio)
-        self._portfolio_values_history.append([self.portfolio_value])
+        df = pd.DataFrame(columns=portfolio_cols + trade_cols, data=data_in)
 
-        self.shares = [self._start_allocation[0] / current_state[1], self._start_allocation[1] / current_state[2]]
-        self._share_history.append([self.shares])
+        period_risk_targets = pd.DataFrame({'time': self._period_risk.keys(),
+                                            'risk': self.end_units_risk - np.array(list(self._period_risk.values()))})
 
-        self.position = 1
-        self._positions_history.append([1])
+        df = df.merge(period_risk_targets, how='outer')
+        df['next_risk_target'] = df.risk.fillna(method='bfill')
+        df['distance_to_next_risk_target'] = df['next_risk_target'] - df['total_risk']
 
-        self._trade_indices_history.append([0])
+        df['rewards'] = [np.nan] + self._rewards[-n]
+        df['observations'] = [np.nan] + self._observations[-n]
+        df['raw_action'] = self._raw_actions[-n] + [np.nan]
+        df['action'] = df['raw_action'] - self.action_space.n // 2
 
-        self._long_short_indices_history.append([0])
+        return df
 
-        self._short_long_indices_history.append([])
+    @property
+    def portfolio_history(self) -> np.array:
+        return np.array([portfolios for portfolios in self._portfolios if len(portfolios) == self._expected_entries])
 
-        self.num_trades.append(dict())
+    @property
+    def share_history(self) -> np.array:
+        def get_shares(portfolio):
+            return portfolio.shares
+        get_shares = np.vectorize(get_shares)
+        return np.dstack(get_shares(self.portfolio_history))
+
+    @property
+    def risk_history(self) -> np.array:
+        def get_risk(portfolio):
+            return portfolio.total_risk
+        get_risk = np.vectorize(get_risk)
+        return get_risk(self.portfolio_history)
+
+    @property
+    def cash_history(self) -> np.array:
+        def get_cash(portfolio):
+            return portfolio.cash
+        get_cash = np.vectorize(get_cash)
+        return get_cash(self.portfolio_history)
+
+    @property
+    def asset_paths(self) -> np.array:
+        def get_prices(portfolio):
+            return portfolio.prices
+        get_prices = np.vectorize(get_prices)
+        return np.dstack(get_prices(self.portfolio_history))
+
+    @property
+    def trades(self) -> np.array:
+        def did_trade(portfolio):
+            if portfolio.trade:
+                if portfolio.trade.asset == 1:
+                    return True, False
+                elif portfolio.trade.asset == 2:
+                    return False, True
+            else:
+                return False, False
+        did_trade = np.vectorize(did_trade)
+        return np.dstack(did_trade(self.portfolio_history))
+
+    @property
+    def forced_trades(self) -> np.array:
+        def did_force_trade(portfolio):
+            if portfolio.penalty_trade:
+                if portfolio.penalty_trade.asset == 1:
+                    return True, False
+                elif portfolio.penalty_trade.asset == 2:
+                    return False, True
+            else:
+                return False, False
+        did_force_trade = np.vectorize(did_force_trade)
+        return np.dstack(did_force_trade(self.portfolio_history))
+
+    def _update_debugging(self, raw_action, reward, observation):
+        self._raw_actions[-1].append(raw_action)
+        self._rewards[-1].append(reward)
+        self._observations[-1].append(observation)
+
+    def _reset_history(self, start_state):
+
+        self.current_portfolio = Portfolio(
+            time=0,
+            cash=self.start_cash,
+            shares=self.start_allocation,
+            prices=(start_state[1], start_state[2]),
+            total_risk=self.start_risk,
+            res_imbalance_state=self.__reverse_mapping[start_state[0]]
+        )
+
+        self._portfolios.append([self.current_portfolio])
+        self._raw_actions.append([])
+        self._rewards.append([])
+        self._observations.append([])
