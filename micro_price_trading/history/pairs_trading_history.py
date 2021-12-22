@@ -48,7 +48,10 @@ class PairsTradingHistory(History):
             max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
                 Short/Long at any time, at most
         """
-        History.__init__(self)
+        History.__init__(
+            self,
+            max_position=max_position
+        )
 
         if start_allocation is None:
             start_allocation = [1000, -500]
@@ -75,7 +78,6 @@ class PairsTradingHistory(History):
 
         # dict: keys are states, values are lists of actions taken in that state
         self.num_trades = [dict()]
-        self.readable_action_space = self._generate_readable_action_space(max_position)
 
         # USED FOR RESET ONLY
         self._start_allocation = start_allocation

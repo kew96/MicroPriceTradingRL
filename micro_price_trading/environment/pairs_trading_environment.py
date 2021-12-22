@@ -119,7 +119,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
         self.state_index = 0
         self.last_state = None
-        self.current_state = self.states.iloc[self.state_index, :]
+        self.current_state = self.states[self.state_index, :]
         self.terminal = False
 
         PairsTradingBroker.__init__(
@@ -204,7 +204,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             self.terminal = True
 
         return (
-            jnp.asarray([self.current_state.values[0], 0]),
+            jnp.asarray([self.current_state[0], 0]),
             reward,
             self.terminal,
             {}
@@ -223,7 +223,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             start = self.state_index
             self.state_index += 1 + self.no_trade_period
             stop = min(self.state_index, len(self.states) - 1)
-            self.current_state = self.states.iloc[stop, :]
+            self.current_state = self.states[stop, :]
 
             self._update_history(
                 portfolio=self.portfolio,
@@ -232,7 +232,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
                 steps=stop - start,
                 trade_index=start,
                 long_short=action > self.position,
-                period_prices=self.states.iloc[start:stop, 1:]
+                period_prices=self.states[start:stop, 1:]
             )
 
             ######## MOVE ###########
@@ -243,7 +243,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             self.position = action
         else:
             self.state_index += 1
-            self.current_state = self.states.iloc[self.state_index, :]
+            self.current_state = self.states[self.state_index, :]
 
             next_portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
 
@@ -290,13 +290,13 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         TwoAssetSimulation._reset_simulation(self)
 
         self.state_index = 0
-        self.current_state = self.states.iloc[self.state_index, :]
+        self.current_state = self.states[self.state_index, :]
         self.terminal = False
 
-        PairsTrading._reset_broker(self, current_state=self.current_state)
+        PairsTradingBroker._reset_broker(self, current_state=self.current_state)
 
         self.num_trades.append(dict())
-        return jnp.asarray([self.current_state.values[0], 0])
+        return jnp.asarray([self.current_state[0], 0])
 
     def render(self, mode="human"):
         return None
@@ -388,16 +388,16 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
         elif data == 'asset_paths':
             fig, axs = plt.subplots(2, figsize=(15, 13))
-            axs[0].plot(self, self._last_states.iloc[:, 1], c='k', alpha=0.7)
+            axs[0].plot(self, self._last_states[:, 1], c='k', alpha=0.7)
             axs[0].set_title('Asset 1')
 
-            axs[1].plot(self._trade_indices_history[-2], self._last_states.iloc[:, 2], c='k', alpha=0.7)
+            axs[1].plot(self._trade_indices_history[-2], self._last_states[:, 2], c='k', alpha=0.7)
             axs[1].set_title('Asset 2')
 
             for idx, ax in enumerate(axs):
                 ax.scatter(
                     self._long_short_indices_history[-2],
-                    self._last_states.iloc[self._long_short_indices_history[-2], idx + 1],
+                    self._last_states[self._long_short_indices_history[-2], idx + 1],
                     s=120,
                     c='g',
                     marker='^',
@@ -405,7 +405,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
                 )
                 ax.scatter(
                     self._short_long_indices_history[-2],
-                    self._last_states.iloc[self._short_long_indices_history[-2], idx + 1],
+                    self._last_states[self._short_long_indices_history[-2], idx + 1],
                     s=120,
                     c='r',
                     marker='v',
