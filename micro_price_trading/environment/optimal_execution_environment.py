@@ -34,7 +34,7 @@ class OptimalExecutionEnvironment(
             data: Data,
             risk_weights: Tuple[int, int],
             trade_penalty: Union[int, float],
-            reward_func: Callable = first_price_reward,  # Moved this to reward_functions.py, easy way to store an useful functions
+            reward_func: Callable = first_price_reward,
             start_allocation: Allocation = None,
             max_purchase: int = 100,
             steps: int = TWENTY_SECOND_DAY,
@@ -160,7 +160,9 @@ class OptimalExecutionEnvironment(
             else:
                 penalty_trade = None
 
+            # TODO penalty trade doesn't seem to buy the correct amount of risk
             self.logical_update(trade, penalty_trade, True)
+
             reward = self.get_reward()
             self.prices_at_start = self.current_state[1:]
         else:
