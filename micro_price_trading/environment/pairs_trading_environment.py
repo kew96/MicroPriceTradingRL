@@ -162,8 +162,6 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         self.threshold = threshold
         self.hard_stop_penalty = hard_stop_penalty
 
-        #
-
     def step(self, action):
         """
         The step function as outlined by OpenAI Gym. Used to take an action and return the necessary information for
@@ -189,8 +187,6 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
                 old_portfolio,
                 self.current_state
             )
-
-            self._update_num_trades(action, self.current_state)
 
         self.logical_update(action)
 
@@ -279,30 +275,6 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             penalty = 0
 
         return self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state) - penalty
-
-    @staticmethod
-    def _generate_readable_action_space(max_position):
-        """
-        Creates a dictionary from integer actions to human readable positions
-
-        Args:
-            max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
-                Short/Long at any time, at most
-
-        Returns: A dictionary mapping of int -> string of integer actions to string representations
-
-        """
-        actions = dict()
-        n_actions = max_position * 2 + 1
-
-        for key in range(n_actions):
-            if key < n_actions // 2:
-                actions[key] = f'Short/Long {n_actions // 2 - key}x'
-            elif key > n_actions // 2:
-                actions[key] = f'Long/Short {key - n_actions // 2}x'
-            else:
-                actions[key] = 'Flat'
-        return actions
 
     def reset(self):
         """
@@ -445,7 +417,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             """
             This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
             """
-            collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
+            collapsed = self._collapse_state_trades(num_env_to_analyze)
             states = []
             d = {}  # keys are states, values are (unique, counts)
 
@@ -475,7 +447,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             This plots the distribution of actions in a given state.
             """
             if state:
-                collapsed = self._collapse_num_trades_dict(num_env_to_analyze)
+                collapsed = self._collapse_state_trades(num_env_to_analyze)
                 unique, counts = np.unique(collapsed[state], return_counts=True)
                 plt.figure(figsize=(15, 10))
                 plt.bar([self.readable_action_space[i] for i in unique], counts)
@@ -488,7 +460,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             """
             Function to plot number of observations in each state. Will show distribution of states
             """
-            collapsed = self._collapse_num_trades_dict(2)
+            collapsed = self._collapse_state_trades(2)
             states = []
             freq = []
 
