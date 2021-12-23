@@ -232,7 +232,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
                 steps=stop - start,
                 trade_index=start,
                 long_short=action > self.position,
-                period_prices=self.states[start:stop, 1:]
+                period_states=self.states[start:stop, 1:]
             )
 
             ######## MOVE ###########
@@ -279,6 +279,30 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             penalty = 0
 
         return self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state) - penalty
+
+    @staticmethod
+    def _generate_readable_action_space(max_position):
+        """
+        Creates a dictionary from integer actions to human readable positions
+
+        Args:
+            max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
+                Short/Long at any time, at most
+
+        Returns: A dictionary mapping of int -> string of integer actions to string representations
+
+        """
+        actions = dict()
+        n_actions = max_position * 2 + 1
+
+        for key in range(n_actions):
+            if key < n_actions // 2:
+                actions[key] = f'Short/Long {n_actions // 2 - key}x'
+            elif key > n_actions // 2:
+                actions[key] = f'Long/Short {key - n_actions // 2}x'
+            else:
+                actions[key] = 'Flat'
+        return actions
 
     def reset(self):
         """

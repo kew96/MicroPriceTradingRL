@@ -290,14 +290,14 @@ class OptimalExecutionEnvironment(
         new_risk = self.current_portfolio.total_risk
 
         if trade:
-            new_cash -= trade.cost
+            new_cash -= trade.total_cost
             new_risk += trade.risk
             if trade.asset == 1:
                 new_shares = new_shares[0] + trade.shares, new_shares[1]
             else:
                 new_shares = new_shares[0], new_shares[1] + trade.shares
         if penalty_trade:
-            new_cash -= penalty_trade.cost
+            new_cash -= penalty_trade.total_cost
             new_risk += penalty_trade.risk
             if penalty_trade.asset == 1:
                 new_shares = new_shares[0] + penalty_trade.shares, new_shares[1]

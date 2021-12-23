@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from .history import History, Allocation
+from micro_price_trading.dataclasses.portfolios.pairs_trading_portfolio import PairsTradingPortfolio
 
 
 class PairsTradingHistory(History):
@@ -34,9 +35,11 @@ class PairsTradingHistory(History):
 
     def __init__(
             self,
-            current_state: pd.Series,
+            start_state: np.ndarray,
+            start_cash: Union[int, float],
+            max_steps: int,
+            reverse_mapping: dict,
             start_allocation: Allocation = None,
-            reverse_mapping: Optional[dict] = None,
             max_position: int = 10
     ):
         """
@@ -56,25 +59,17 @@ class PairsTradingHistory(History):
         if start_allocation is None:
             start_allocation = [1000, -500]
 
-        self.portfolio = [-sum(start_allocation), *start_allocation]
-        self._portfolio_history = [[self.portfolio]]
+        self._expected_entries = max_steps + 1
 
-        self.portfolio_value = sum(self.portfolio)
-        self._portfolio_values_history = [[self.portfolio_value]]
+        self.current_portfolio = PairsTradingPortfolio(
+            time=0,
+            cash=start_cash,
+            shares=start_allocation,
+            mid_prices=tuple(start_state[1:]),
+            res_imbalance_state=reverse_mapping.get(start_state[0], '---'),
+        )
 
-        self.shares = [start_allocation[0]/current_state[1], start_allocation[1]/current_state[2]]
-        self._share_history = [[self.shares]]
-
-        self.position = 1
-        self._positions_history = [[self.position]]
-
-        # First trade is always at time 0
-        self._trade_indices_history = [[0]]
-
-        # Always start long/short
-        self._long_short_indices_history = [[0]]
-
-        self._short_long_indices_history = [[]]
+        self._portfolios = [[self.current_portfolio]]
 
         # dict: keys are states, values are lists of actions taken in that state
         self.num_trades = [dict()]
@@ -86,84 +81,61 @@ class PairsTradingHistory(History):
         self.__reverse_mapping = reverse_mapping
 
     @property
-    def portfolio_history(self):
-        return np.array(self._portfolio_history)
+    def portfolio_history(self) -> np.ndarray:
+        return np.array([portfolios for portfolios in self._portfolios if len(portfolios) == self._expected_entries])
 
     @property
-    def portfolio_values_history(self):
-        return np.array(self._portfolio_values_history)
+    def share_history(self) -> np.ndarray:
+        def get_shares(portfolio):
+            return portfolio.shares
+
+        get_shares = np.vectorize(get_shares)
+        return np.dstack(get_shares(self.portfolio_history))
 
     @property
-    def share_history(self):
-        return np.array(self._share_history)
+    def risk_history(self) -> np.ndarray:
+        def get_risk(portfolio):
+            return portfolio.total_risk
+
+        get_risk = np.vectorize(get_risk)
+        return get_risk(self.portfolio_history)
 
     @property
-    def positions_history(self):
-        return np.array(self._positions_history)
+    def cash_history(self) -> np.array:
+        def get_cash(portfolio):
+            return portfolio.cash
+
+        get_cash = np.vectorize(get_cash)
+        return get_cash(self.portfolio_history)
 
     @property
-    def trade_indices_history(self):
-        return np.array(self._trade_indices_history)
+    def asset_paths(self) -> np.ndarray:
+        def get_prices(portfolio):
+            return portfolio.mid_prices
+
+        get_prices = np.vectorize(get_prices)
+        return np.dstack(get_prices(self.portfolio_history))
 
     @property
-    def long_short_indices_history(self):
-        return np.array(self._long_short_indices_history)
+    def positions_history(self) -> np.ndarray:
+        def get_position(portfolio):
+            return portfolio.position
+
+        get_positions = np.vectorize(get_position)
+        return np.array(get_positions(self.portfolio_history))
 
     @property
-    def short_long_indices_history(self):
-        return np.array(self._short_long_indices_history)
+    def portfolio_value_history(self) -> np.ndarray:
+        def get_value(portfolio):
+            return portfolio.value()  # TODO: Try to use the bid/ask spread
 
-    @staticmethod
-    def _generate_readable_action_space(max_position):
-        """
-        Creates a dictionary from integer actions to human readable positions
-
-        Args:
-            max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
-                Short/Long at any time, at most
-
-        Returns: A dictionary mapping of int -> string of integer actions to string representations
-
-        """
-        actions = dict()
-        n_actions = max_position * 2 + 1
-
-        for key in range(n_actions):
-            if key < n_actions // 2:
-                actions[key] = f'Short/Long {n_actions // 2 - key}x'
-            elif key > n_actions // 2:
-                actions[key] = f'Long/Short {key - n_actions // 2}x'
-            else:
-                actions[key] = 'Flat'
-        return actions
-
-    @staticmethod
-    def _update_portfolio(portfolio, shares, state):
-        """
-        A function to 'step' the portfolio through time as market prices evolve.
-        Args:
-            portfolio: A list of the current portfolio dollar amounts, [cash, asset 1, asset 2]
-            shares: A list of the current shares in each asset
-            state: A Pandas Series of the current residual imbalance state, the mid-price of asset 1 and asset 2
-
-        Returns: A new portfolio list with the same cash value and updated position values
-
-        """
-        return [
-            portfolio[0],
-            shares[0]*state[1],  # TODO: Include bid/ask spread. Most likely move to Broker
-            shares[1]*state[2]
-        ]
+        get_values = np.vectorize(get_value)
+        return np.array(get_values(self.portfolio_history))
 
     def _update_history(
             self,
-            portfolio: List[int],
-            shares: List[float],
-            position: int,
-            steps: int = 1,
-            trade_index: Optional[int] = None,
-            long_short: Optional[bool] = None,
-            period_prices: Optional[pd.DataFrame] = None
+            portfolio: PairsTradingPortfolio,
+            period_states: Optional[np.ndarray] = None
     ):
         """
         Helper method for updating all history tracking with single or multiple time steps as necessary
@@ -175,37 +147,19 @@ class PairsTradingHistory(History):
             steps: The number of steps to take
             trade_index: If trading, specify which step
             long_short: A boolean if we are going Long/Short
-            period_prices: A Pandas DataFrame with the first and second columns as the asset prices,
+            period_states: A Pandas DataFrame with the first and second columns as the asset prices,
                 `len(period_prices)` should equal `steps`. Should include the current prices as the first row.
         """
-        if steps == 1:
-            self._portfolio_history[-1].append(portfolio)
-            self._portfolio_values_history[-1].append(sum(portfolio))
-            self._share_history[-1].append(shares)
-            self._positions_history[-1].append(position)
-        else:
-            amounts = period_prices * shares  # TODO: Take into account Bid/Ask spread
-            portfolios = [
-                [portfolio[0], asset1, asset2] for asset1, asset2 in amounts.itertuples(index=False)
-            ]
-
-            self._portfolio_history[-1].extend(portfolios)
-            self._portfolio_values_history[-1].extend(map(sum, portfolios))
-
-            self._share_history[-1].extend([shares]*steps)
-            self._positions_history[-1].extend([position]*steps)
-
-        if trade_index:
-            self._trade_indices_history[-1].append(trade_index)
-            if long_short:
-                self._long_short_indices_history[-1].append(trade_index)
-            elif not long_short:
-                self._short_long_indices_history[-1].append(trade_index)
-            else:
-                raise Exception(
-                    'When trading, trade_index must be of type `int` and long_short must be of type bool.'
-                    f'Received ({type(trade_index)}, {type(long_short)})'
+        if period_states:
+            portfolios = [portfolio]
+            for state in period_states:
+                portfolio = portfolio.copy_portfolio(
+                    self.__reverse_mapping.get(state[0], '---'),
+                    state[1:]
                 )
+        else:
+            self._portfolio_history[-1].append(portfolio)
+
 
     def _collapse_num_trades_dict(
             self,

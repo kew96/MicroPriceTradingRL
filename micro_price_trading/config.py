@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 
 
@@ -10,3 +11,13 @@ PAIRS_TRADING_FIGURES = __CONFIG_PATH.parent.parent.joinpath('PairsTradingRL', '
 
 TEN_SECOND_DAY = 2340
 TWENTY_SECOND_DAY = 1170
+
+
+class PairsTradingSides:
+    LongShort = 'Long/Short'
+    ShortLong = 'Short/Long'
+
+
+class BuySell:
+    Buy = 'Buy'
+    Sell = 'Sell'
