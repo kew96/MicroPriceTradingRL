@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from base_trade import Trade
+from .base_trade import Trade
 
 
 @dataclass

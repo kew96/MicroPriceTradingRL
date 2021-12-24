@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from base_portfolio import Portfolio
-from micro_price_trading.dataclasses.trades.pairs_trading_trade import PairsTradingTrade
+from .base_portfolio import Portfolio
+from micro_price_trading.dataclasses.trades import PairsTradingTrade
 
 
 @dataclass

@@ -1,2 +1,2 @@
-from optimal_execution_portfolio import OptimalExecutionPortfolio
-from pairs_trading_portfolio import PairsTradingPortfolio
+from .optimal_execution_portfolio import OptimalExecutionPortfolio
+from .pairs_trading_portfolio import PairsTradingPortfolio

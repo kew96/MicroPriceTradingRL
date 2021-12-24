@@ -12,5 +12,3 @@ class Portfolio:
     mid_prices: Tuple[float, float]
     res_imbalance_state: str
     trade: Optional[Trade] = None
-
-    assert len(shares) == len(mid_prices)

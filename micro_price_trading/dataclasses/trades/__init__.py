@@ -1,2 +1,2 @@
-from optimal_execution_trade import OptimalExecutionTrade
-from pairs_trading_trade import PairsTradingTrade
+from .optimal_execution_trade import OptimalExecutionTrade
+from .pairs_trading_trade import PairsTradingTrade
