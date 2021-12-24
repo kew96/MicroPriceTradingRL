@@ -26,3 +26,25 @@ class PairsTradingPortfolio(Portfolio):
         new_portfolio.mid_prices = new_prices
         new_portfolio.trade = None
         return new_portfolio
+
+    def __add__(self, other):
+        if isinstance(other, PairsTradingTrade):
+            trades = list(self.trade) if self.trade else list()
+            trades.append(other)
+
+            new_portfolio = self.copy_portfolio(self.res_imbalance_state, self.mid_prices)
+
+            new_portfolio.trade = tuple(trades)
+
+            new_portfolio.time = self.time
+
+            new_portfolio.cash -= other.total_cost
+
+            shares = list(new_portfolio.shares)
+            shares[other.asset-1] += other.shares
+            new_portfolio.shares = tuple(shares)
+
+            return new_portfolio
+
+        else:
+            raise TypeError(f"unsupported operand type(s) for +: 'PairsTradingPortfolio' and '{type(other)}'")
