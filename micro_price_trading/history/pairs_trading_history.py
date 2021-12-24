@@ -160,14 +160,14 @@ class PairsTradingHistory(History):
                 `len(period_prices)` should equal `steps`. Should include the current prices as the first row.
         """
         portfolios = [portfolio]
-        if period_states:
+        if period_states is not None:
             for state in period_states:
                 portfolio = portfolio.copy_portfolio(
                     self.__reverse_mapping.get(state[0], '---'),
-                    state[1:]
+                    tuple(state[1:])
                 )
                 portfolios.append(portfolio)
-        self._portfolios.extend(portfolios)
+        self._portfolios[-1].extend(portfolios)
 
     def _collapse_state_trades(
             self,
@@ -177,13 +177,11 @@ class PairsTradingHistory(History):
 
         for portfolio_set in self.portfolio_history[-num_env_to_analyze:]:
             for portfolio in portfolio_set:
-                if portfolio.trade:
-                    num_trades[
-                        (portfolio.res_imbalance_state, portfolio.trade.shares*np.sign(portfolio.trade.total_cost))
-                    ] = num_trades.get(
-                        (portfolio.res_imbalance_state, portfolio.trade.shares*np.sign(portfolio.trade.total_cost)),
-                        0
-                    ) + 1
+                state = num_trades.get(portfolio.res_imbalance_state, dict())
+                state_position = state.get(portfolio.position, 0)
+
+                state[portfolio.position] = state_position + 1
+                num_trades[portfolio.res_imbalance_state] = state
 
         return num_trades
 
