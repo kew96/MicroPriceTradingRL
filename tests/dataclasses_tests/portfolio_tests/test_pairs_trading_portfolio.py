@@ -78,7 +78,7 @@ class TestPairsTradingPortfolio(unittest.TestCase):
             mid_price=18
         )
 
-        new_portfolio = (portfolio + trade1) + trade2
+        new_portfolio = portfolio + trade1 + trade2
 
         target_portfolio = PairsTradingPortfolio(
             time=portfolio.time,
