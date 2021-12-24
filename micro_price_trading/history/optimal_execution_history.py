@@ -1,12 +1,12 @@
 from abc import ABC
-from typing import Optional, Union
+from typing import Union
 import dataclasses
 
 import numpy as np
 import pandas as pd
 
 from .history import History, Allocation
-from micro_price_trading.dataclasses.portfolios.optimal_execution_portfolio import OptimalExecutionPortfolio
+from micro_price_trading.dataclasses.portfolios import OptimalExecutionPortfolio
 
 
 class OptimalExecutionHistory(History, ABC):

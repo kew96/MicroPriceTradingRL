@@ -4,7 +4,8 @@ from typing import Tuple, Union
 import pandas as pd
 
 from micro_price_trading.broker.broker import Broker
-from micro_price_trading.history.optimal_execution_history import Portfolio, Trade
+from micro_price_trading.dataclasses.trades import OptimalExecutionTrade
+from micro_price_trading.dataclasses.portfolios import OptimalExecutionPortfolio
 
 
 class OptimalExecutionBroker(Broker, ABC):
@@ -50,7 +51,7 @@ class OptimalExecutionBroker(Broker, ABC):
         if penalty_trade:
             trading_cost *= self.trade_penalty
 
-        trade = Trade(
+        trade = OptimalExecutionTrade(
             asset=asset,
             shares=abs(action),
             risk=self._get_risk(abs(action), asset, current_state[asset]),
