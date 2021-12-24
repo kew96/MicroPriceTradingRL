@@ -15,7 +15,7 @@ from matplotlib.legend_handler import HandlerTuple
 from micro_price_trading.reward_functions import first_price_reward
 from micro_price_trading.history.history import Allocation
 from micro_price_trading.preprocessing.preprocess import Data
-from micro_price_trading.history.optimal_execution_history import Portfolio
+from micro_price_trading.dataclasses.portfolios import OptimalExecutionPortfolio
 from micro_price_trading import TwoAssetSimulation, OptimalExecutionBroker, OptimalExecutionHistory
 
 from micro_price_trading.config import OPTIMAL_EXECUTION_FIGURES, TWENTY_SECOND_DAY
@@ -304,11 +304,11 @@ class OptimalExecutionEnvironment(
             else:
                 new_shares = new_shares[0], new_shares[1] + penalty_trade.shares
 
-        new_portfolio = Portfolio(
+        new_portfolio = OptimalExecutionPortfolio(
             self.state_index,
             cash=new_cash,
             shares=new_shares,
-            prices=tuple(self.current_state[1:]),
+            mid_prices=tuple(self.current_state[1:]),
             total_risk=new_risk,
             res_imbalance_state=self._reverse_mapping[self.current_state[0]],  # TODO: Wrong current state? 47 res bins
             trade=trade,
