@@ -30,7 +30,7 @@ class PairsTradingHistory(History):
         _update_history: Stores current portfolio and any additional ones if prices are passed
         _collapse_state_trades: Creates a dictionary with residual imbalance states and positions as keys and the
             corresponding number of trades as the values
-        _
+        _reset_history: Resets the history for another tracking run
     """
 
     def __init__(
@@ -45,7 +45,7 @@ class PairsTradingHistory(History):
         """
 
         Args:
-            current_state: current_state: The initial state to start the History at
+            start_state: The initial state to start the History at
             start_allocation: The initial allocation in dollars to both assets
             reverse_mapping: The reversed mapping from integers to residual imbalance states
             max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
@@ -156,11 +156,6 @@ class PairsTradingHistory(History):
 
         Args:
             portfolio: A list of the current portfolio dollar amounts, [cash, asset 1, asset 2]
-            shares: A list of the current shares in each asset
-            position: The current leverage position
-            steps: The number of steps to take
-            trade_index: If trading, specify which step
-            long_short: A boolean if we are going Long/Short
             period_states: A Pandas DataFrame with the first and second columns as the asset prices,
                 `len(period_prices)` should equal `steps`. Should include the current prices as the first row.
         """
