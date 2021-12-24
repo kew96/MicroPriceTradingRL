@@ -97,7 +97,7 @@ class TestPairsTradingPortfolio(unittest.TestCase):
         for var_type in (1, 's', True, [1, 2]):
             with self.assertRaises(TypeError):
 
-                portfolio + var_type
+                _ = portfolio + var_type
 
 
 if __name__ == '__main__':
