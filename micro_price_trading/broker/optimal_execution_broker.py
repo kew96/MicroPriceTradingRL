@@ -55,8 +55,8 @@ class OptimalExecutionBroker(Broker, ABC):
             asset=asset,
             shares=abs(action),
             risk=self._get_risk(abs(action), asset, current_state[asset]),
-            price=current_state[asset],
-            cost=trading_cost,
+            execution_price=current_state[asset],
+            total_cost=trading_cost,
             penalty=penalty_trade
         )
 
