@@ -3,7 +3,11 @@ import numpy as np
 from micro_price_trading.dataclasses.portfolios import OptimalExecutionPortfolio
 
 
-def first_price_cost_reward(current_portfolio: OptimalExecutionPortfolio, prices_at_start: np.ndarray, target_risk: int):
+def first_price_cost_reward(
+        current_portfolio: OptimalExecutionPortfolio,
+        prices_at_start: np.ndarray,
+        target_risk: int
+        ):
     diff = 0
 
     # TODO i think we need to include an 'unforced no trade' such as below
@@ -35,7 +39,10 @@ def first_price_reward(current_portfolio: OptimalExecutionPortfolio, prices_at_s
         diff += prices_at_start[current_portfolio.trade.asset - 1] - current_portfolio.trade.execution_price
     if current_portfolio.penalty_trade:
         # If we are forced to trade, take the total difference based on purchase price
-        diff += prices_at_start[current_portfolio.penalty_trade.asset - 1] - current_portfolio.penalty_trade.execution_price
+        diff += (
+                prices_at_start[current_portfolio.penalty_trade.asset - 1] -
+                current_portfolio.penalty_trade.execution_price
+        )
         return diff, 'under risk penalty'
     if target_risk < current_portfolio.total_risk:
         # If we are over the total risk for this period, penalize it even more

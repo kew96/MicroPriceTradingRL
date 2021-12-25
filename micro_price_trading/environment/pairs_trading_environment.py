@@ -106,13 +106,13 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             max_position: int = 10,
             steps: int = TEN_SECOND_DAY,
             seed: Optional[int] = None
-    ):
+            ):
         TwoAssetSimulation.__init__(
-            self,
-            data=data,
-            steps=steps,
-            seed=seed
-        )
+                self,
+                data=data,
+                steps=steps,
+                seed=seed
+                )
 
         if start_allocation is None:
             start_allocation = [1000, -500]
@@ -123,30 +123,32 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         self.terminal = False
 
         PairsTradingBroker.__init__(
-            self,
-            current_state=self.current_state,
-            start_allocation=start_allocation,
-            fixed_buy_cost=fixed_buy_cost,
-            fixed_sell_cost=fixed_sell_cost,
-            variable_buy_cost=variable_buy_cost,
-            variable_sell_cost=variable_sell_cost,
-            spread=spread,
-            no_trade_period=no_trade_period,
-            max_position=max_position,
-            reverse_mapping=self._reverse_mapping
-        )
+                self,
+                current_state=self.current_state,
+                start_allocation=start_allocation,
+                fixed_buy_cost=fixed_buy_cost,
+                fixed_sell_cost=fixed_sell_cost,
+                variable_buy_cost=variable_buy_cost,
+                variable_sell_cost=variable_sell_cost,
+                spread=spread,
+                no_trade_period=no_trade_period,
+                max_position=max_position,
+                reverse_mapping=self._reverse_mapping
+                )
 
         # RL/OpenAI Gym requirements
         self.reward_func = reward_func
 
-        self.observation_space = MultiDiscrete([
-            len(self.mapping),  # Set of residual imbalance states
-            # self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
-            # self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value,
-            # self.ite,  # Number of trading periods in run,
-            # self.max_position*2+1  # Current position,
-            1  # Needed for compatability with other packages
-        ])
+        self.observation_space = MultiDiscrete(
+                [
+                    len(self.mapping),  # Set of residual imbalance states
+                    # self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
+                    # self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value,
+                    # self.ite,  # Number of trading periods in run,
+                    # self.max_position*2+1  # Current position,
+                    1  # Needed for compatability with other packages
+                    ]
+                )
         self.action_space = Discrete(max_position * 2 + 1)
 
         self._max_episode_steps = 10_000
@@ -182,11 +184,11 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         if self.position != action:
             self._traded = True
             self.portfolio, self.shares = self.trade(
-                action,
-                self._start_allocation,
-                old_portfolio,
-                self.current_state
-            )
+                    action,
+                    self._start_allocation,
+                    old_portfolio,
+                    self.current_state
+                    )
 
         self.logical_update(action)
 
@@ -204,7 +206,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             reward,
             self.terminal,
             {}
-        )
+            )
 
     def logical_update(self, action):
         """
@@ -222,14 +224,14 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             self.current_state = self.states[stop, :]
 
             self._update_history(
-                portfolio=self.portfolio,
-                shares=self.shares,
-                position=action,
-                steps=stop - start,
-                trade_index=start,
-                long_short=action > self.position,
-                period_states=self.states[start:stop, 1:]
-            )
+                    portfolio=self.portfolio,
+                    shares=self.shares,
+                    position=action,
+                    steps=stop - start,
+                    trade_index=start,
+                    long_short=action > self.position,
+                    period_states=self.states[start:stop, 1:]
+                    )
 
             ######## MOVE ###########
             self.trades.extend([1] + [0] * (stop - start - 1))
@@ -244,11 +246,11 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             next_portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
 
             self._update_history(
-                portfolio=next_portfolio,
-                shares=self.shares,
-                position=action,
-                steps=1
-            )
+                    portfolio=next_portfolio,
+                    shares=self.shares,
+                    position=action,
+                    steps=1
+                    )
 
             ####### MOVE ########
             self.trades.append(0)
@@ -302,7 +304,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             data='portfolio_history',
             num_env_to_analyze=1,
             state=None
-    ):
+            ):
         """
         The general function for plotting and visualizing the data. Options include the following:
             `portfolio_history`
@@ -326,7 +328,7 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             'summarize_state_decisions',
             'state_frequency',
             'learning_progress'
-        ]
+            ]
 
         if data == 'help':
             print(options)
@@ -340,28 +342,30 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         if data == 'portfolio_history':
             fig, axs = plt.subplots(figsize=(15, 10))
 
-            axs.plot(range(len(self._portfolio_values_history[-2])), self._portfolio_values_history[-2], label='Total',
-                     c='k', alpha=0.7)
+            axs.plot(
+                    range(len(self._portfolio_values_history[-2])), self._portfolio_values_history[-2], label='Total',
+                    c='k', alpha=0.7
+                    )
             axs.set_ylabel('Total Value', fontsize=14)
 
             portfolio_values = np.array(self._portfolio_values_history[-2])
 
             axs.scatter(
-                self._long_short_indices_history[-2],
-                portfolio_values[self._long_short_indices_history[-2]],
-                s=120,
-                c='g',
-                marker='^',
-                label='Long/Short'
-            )
+                    self._long_short_indices_history[-2],
+                    portfolio_values[self._long_short_indices_history[-2]],
+                    s=120,
+                    c='g',
+                    marker='^',
+                    label='Long/Short'
+                    )
             axs.scatter(
-                self._short_long_indices_history[-2],
-                portfolio_values[self._short_long_indices_history[-2]],
-                s=120,
-                c='r',
-                marker='v',
-                label='Short/Long'
-            )
+                    self._short_long_indices_history[-2],
+                    portfolio_values[self._short_long_indices_history[-2]],
+                    s=120,
+                    c='r',
+                    marker='v',
+                    label='Short/Long'
+                    )
 
             fig.legend(fontsize=14)
             fig.suptitle('Portfolio Value', fontsize=14)
@@ -392,21 +396,21 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
             for idx, ax in enumerate(axs):
                 ax.scatter(
-                    self._long_short_indices_history[-2],
-                    self._last_states[self._long_short_indices_history[-2], idx + 1],
-                    s=120,
-                    c='g',
-                    marker='^',
-                    label='Long/Short'
-                )
+                        self._long_short_indices_history[-2],
+                        self._last_states[self._long_short_indices_history[-2], idx + 1],
+                        s=120,
+                        c='g',
+                        marker='^',
+                        label='Long/Short'
+                        )
                 ax.scatter(
-                    self._short_long_indices_history[-2],
-                    self._last_states[self._short_long_indices_history[-2], idx + 1],
-                    s=120,
-                    c='r',
-                    marker='v',
-                    label='Short/Long'
-                )
+                        self._short_long_indices_history[-2],
+                        self._last_states[self._short_long_indices_history[-2], idx + 1],
+                        s=120,
+                        c='r',
+                        marker='v',
+                        label='Short/Long'
+                        )
 
             axs[0].legend(fontsize=14)
             fig.suptitle('Asset Paths', fontsize=14)
@@ -432,11 +436,12 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
                                 sorted(d.keys())]
 
             for pos, act in zip(range(-self.max_position, self.max_position + 1), range(self.action_space.n)):
-                ax.bar(sorted(d.keys()),
-                       freq_dict[pos],
-                       label=self.readable_action_space[act],
-                       bottom=sum([np.array(freq_dict[j]) for j in range(pos)])
-                       )
+                ax.bar(
+                        sorted(d.keys()),
+                        freq_dict[pos],
+                        label=self.readable_action_space[act],
+                        bottom=sum([np.array(freq_dict[j]) for j in range(pos)])
+                        )
 
             ax.legend()
             plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)

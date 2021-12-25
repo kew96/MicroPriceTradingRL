@@ -24,10 +24,10 @@ class TestPreprocess(unittest.TestCase):
 
         for idx, data in enumerate((data1, data2, data3, data4), 1):
             self.assertLess(
-                data.transition_matrix.shape[0],
-                data.transition_matrix.shape[1],
-                f'data{idx}'
-            )
+                    data.transition_matrix.shape[0],
+                    data.transition_matrix.shape[1],
+                    f'data{idx}'
+                    )
 
 
 if __name__ == '__main__':

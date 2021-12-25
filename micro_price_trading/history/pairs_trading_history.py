@@ -8,7 +8,6 @@ from micro_price_trading.dataclasses.portfolios.pairs_trading_portfolio import P
 
 
 class PairsTradingHistory(History):
-
     """
     The main class for tracking and storing all data for PairsTrading. Updates data as necessary, even skipping multiple
     steps when needed. Generally, a set of arrays and a few functions all related to data storage.
@@ -41,7 +40,7 @@ class PairsTradingHistory(History):
             reverse_mapping: dict,
             start_allocation: Allocation = None,
             max_position: int = 10
-    ):
+            ):
         """
 
         Args:
@@ -52,9 +51,9 @@ class PairsTradingHistory(History):
                 Short/Long at any time, at most
         """
         History.__init__(
-            self,
-            max_position=max_position
-        )
+                self,
+                max_position=max_position
+                )
 
         if start_allocation is None:
             start_allocation = [1000, -500]
@@ -62,12 +61,12 @@ class PairsTradingHistory(History):
         self._expected_entries = max_steps + 1
 
         self.current_portfolio = PairsTradingPortfolio(
-            time=0,
-            cash=start_cash,
-            shares=start_allocation,
-            mid_prices=tuple(start_state[1:]),
-            res_imbalance_state=reverse_mapping.get(start_state[0], '---'),
-        )
+                time=0,
+                cash=start_cash,
+                shares=start_allocation,
+                mid_prices=tuple(start_state[1:]),
+                res_imbalance_state=reverse_mapping.get(start_state[0], '---'),
+                )
 
         self._portfolios = [[]]
 
@@ -150,7 +149,7 @@ class PairsTradingHistory(History):
             self,
             portfolio: PairsTradingPortfolio,
             period_states: Optional[np.ndarray] = None
-    ):
+            ):
         """
         Helper method for updating all history tracking with single or multiple time steps as necessary
 
@@ -163,16 +162,16 @@ class PairsTradingHistory(History):
         if period_states is not None:
             for state in period_states:
                 portfolio = portfolio.copy_portfolio(
-                    self.__reverse_mapping.get(state[0], '---'),
-                    tuple(state[1:])
-                )
+                        self.__reverse_mapping.get(state[0], '---'),
+                        tuple(state[1:])
+                        )
                 portfolios.append(portfolio)
         self._portfolios[-1].extend(portfolios)
 
     def _collapse_state_trades(
             self,
             num_env_to_analyze: int = 1
-    ):
+            ):
         num_trades = dict()
 
         for portfolio_set in self.portfolio_history[-num_env_to_analyze:]:
@@ -187,10 +186,10 @@ class PairsTradingHistory(History):
 
     def _reset_history(self, start_state):
         self.current_portfolio = PairsTradingPortfolio(
-            time=0,
-            cash=self._start_cash,
-            shares=self._start_allocation,
-            mid_prices=tuple(start_state[1:]),
-            res_imbalance_state=self.__reverse_mapping.get(start_state[0], '---'),
-        )
+                time=0,
+                cash=self._start_cash,
+                shares=self._start_allocation,
+                mid_prices=tuple(start_state[1:]),
+                res_imbalance_state=self.__reverse_mapping.get(start_state[0], '---'),
+                )
         self._portfolios.append([])

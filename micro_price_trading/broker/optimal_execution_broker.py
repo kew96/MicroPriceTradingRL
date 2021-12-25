@@ -14,7 +14,7 @@ class OptimalExecutionBroker(Broker, ABC):
             self,
             risk_weights: Tuple[int, int],
             trade_penalty: Union[int, float]
-    ):
+            ):
         Broker.__init__(self)
         self.risk_weights = risk_weights
         self.trade_penalty = trade_penalty
@@ -24,7 +24,7 @@ class OptimalExecutionBroker(Broker, ABC):
             action: int,
             current_state: pd.Series,
             penalty_trade: bool
-    ):
+            ):
         """
         The main function for trading. Takes in the required information and returns the new positions and dollar
         amounts after executing the desired trades
@@ -52,13 +52,13 @@ class OptimalExecutionBroker(Broker, ABC):
             trading_cost *= self.trade_penalty
 
         trade = OptimalExecutionTrade(
-            asset=asset,
-            shares=abs(action),
-            risk=self._get_risk(abs(action), asset, current_state[asset]),
-            execution_price=current_state[asset],
-            total_cost=trading_cost,
-            penalty=penalty_trade
-        )
+                asset=asset,
+                shares=abs(action),
+                risk=self._get_risk(abs(action), asset, current_state[asset]),
+                execution_price=current_state[asset],
+                total_cost=trading_cost,
+                penalty=penalty_trade
+                )
 
         return trade
 
@@ -91,7 +91,7 @@ class OptimalExecutionBroker(Broker, ABC):
         Returns: An int of the total risk bought
 
         """
-        return shares * self.risk_weights[asset-1]
+        return shares * self.risk_weights[asset - 1]
 
     @staticmethod
     def buy(shares, price):

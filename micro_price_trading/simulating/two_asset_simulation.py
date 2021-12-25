@@ -10,7 +10,7 @@ class TwoAssetSimulation(Simulation):
             self,
             *args,
             **kwargs
-    ):
+            ):
         Simulation.__init__(self, *args, **kwargs)
 
     def _simulate(self, tick=0.01):

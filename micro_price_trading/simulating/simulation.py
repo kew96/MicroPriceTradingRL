@@ -13,7 +13,7 @@ class Simulation(ABC):
             data: Data,
             steps: int = 1_000,
             seed: Optional[int] = None
-    ):
+            ):
         self._rng = self._set_seed(seed)
 
         self.df = data.data

@@ -13,9 +13,9 @@ class TestOptimalExecutionBroker(unittest.TestCase):
         sim = TwoAssetSimulation(data, seed=0)
         cls.sim = sim
         cls.broker = OptimalExecutionBroker(
-            risk_weights=(1, 2),
-            trade_penalty=1.1
-        )
+                risk_weights=(1, 2),
+                trade_penalty=1.1
+                )
 
     def test_determine_asset(self):
         self.assertEqual(self.broker._determine_asset(-10), 1)
@@ -39,40 +39,40 @@ class TestOptimalExecutionBroker(unittest.TestCase):
         current_state[1:] = [10, 20]
 
         expected_trade1 = Trade(
-            asset=1,
-            shares=5,
-            risk=5,
-            price=10,
-            cost=5*10,
-            penalty=False
-        )
+                asset=1,
+                shares=5,
+                risk=5,
+                price=10,
+                cost=5 * 10,
+                penalty=False
+                )
 
         expected_trade2 = Trade(
-            asset=2,
-            shares=8,
-            risk=16,
-            price=20,
-            cost=8 * 20,
-            penalty=False
-        )
+                asset=2,
+                shares=8,
+                risk=16,
+                price=20,
+                cost=8 * 20,
+                penalty=False
+                )
 
         expected_trade3 = Trade(
-            asset=1,
-            shares=3,
-            risk=3,
-            price=10,
-            cost=3 * 10 * 1.1,
-            penalty=True
-        )
+                asset=1,
+                shares=3,
+                risk=3,
+                price=10,
+                cost=3 * 10 * 1.1,
+                penalty=True
+                )
 
         expected_trade4 = Trade(
-            asset=2,
-            shares=2,
-            risk=4,
-            price=20,
-            cost=2 * 20 * 1.1,
-            penalty=True
-        )
+                asset=2,
+                shares=2,
+                risk=4,
+                price=20,
+                cost=2 * 20 * 1.1,
+                penalty=True
+                )
 
         self.assertEqual(self.broker.trade(-5, current_state, False), expected_trade1)
         self.assertEqual(self.broker.trade(8, current_state, False), expected_trade2)

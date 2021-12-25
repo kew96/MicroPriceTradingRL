@@ -15,8 +15,8 @@ class PairsTradingPortfolio(Portfolio):
         return (
                 self.cash +
                 sum(
-                    map(lambda pairs: pairs[0] * pairs[1], zip(self.shares, execution_prices))
-                )
+                        map(lambda pairs: pairs[0] * pairs[1], zip(self.shares, execution_prices))
+                        )
         )
 
     def copy_portfolio(self, new_state, new_prices):
@@ -41,7 +41,7 @@ class PairsTradingPortfolio(Portfolio):
             new_portfolio.cash -= other.total_cost
 
             shares = list(new_portfolio.shares)
-            shares[other.asset-1] += other.shares
+            shares[other.asset - 1] += other.shares
             new_portfolio.shares = tuple(shares)
 
             return new_portfolio

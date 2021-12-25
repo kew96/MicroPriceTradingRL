@@ -33,7 +33,7 @@ class Preprocess:
             quantile: bool = False,
             tick_shift: int = 1,
             file_prefix: Optional[str] = None
-    ):
+            ):
         self.__data_file = data
         self.__data = pd.read_csv(DATA_PATH.joinpath(data))
         self.__transition_matrix = None
@@ -278,23 +278,23 @@ class Preprocess:
         self.__transition_matrix.to_csv(prob_file)
 
         in_sample_data = Data(
-            data=self.__data,
-            transition_matrix=self.__transition_matrix,
-            res_bins=self.__res_bin,
-            imb1_bins=self.__imb1_bin,
-            imb2_bins=self.__imb2_bin
-        )
+                data=self.__data,
+                transition_matrix=self.__transition_matrix,
+                res_bins=self.__res_bin,
+                imb1_bins=self.__imb1_bin,
+                imb2_bins=self.__imb2_bin
+                )
 
         if out_of_sample is not None:
             out_of_sample_transition_matrix = self._markov_matrix(out_of_sample)
 
             out_of_sample_data = Data(
-                data=out_of_sample,
-                transition_matrix=out_of_sample_transition_matrix,
-                res_bins=self.__res_bin,
-                imb1_bins=self.__imb1_bin,
-                imb2_bins=self.__imb2_bin
-            )
+                    data=out_of_sample,
+                    transition_matrix=out_of_sample_transition_matrix,
+                    res_bins=self.__res_bin,
+                    imb1_bins=self.__imb1_bin,
+                    imb2_bins=self.__imb2_bin
+                    )
 
             return in_sample_data, out_of_sample_data
 
