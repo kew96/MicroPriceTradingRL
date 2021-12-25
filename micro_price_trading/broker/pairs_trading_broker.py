@@ -1,12 +1,15 @@
-from typing import List, Union
+from typing import Tuple, Union
 
-import pandas as pd
+import numpy as np
+
+from micro_price_trading.config import BuySell
 
 from .broker import Broker
+from micro_price_trading.dataclasses.trades import PairsTradingTrade
+from micro_price_trading.dataclasses.portfolios import PairsTradingPortfolio
 
 
 class PairsTradingBroker(Broker):
-
     """
     The main class to deal with trading in our specific pairs trading environment. Generally takes care of the actual
     trade and any associated costs, bid/ask spreads, and the like.
@@ -37,6 +40,7 @@ class PairsTradingBroker(Broker):
 
     def __init__(
             self,
+            amounts: Tuple[int, int] = (500, -1000),
             fixed_buy_cost: float = 0.0,
             fixed_sell_cost: float = 0.0,
             variable_buy_cost: float = 0.0,
@@ -44,7 +48,7 @@ class PairsTradingBroker(Broker):
             spread: Union[float, int] = 0,
             no_trade_period: int = 0,
             max_position: int = 10
-    ):
+            ):
         """
 
         Args:
@@ -61,6 +65,8 @@ class PairsTradingBroker(Broker):
             max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
                 Short/Long at any time, at most
         """
+
+        self.amounts = amounts
 
         # Trading costs
         self.fixed_buy_cost = fixed_buy_cost
@@ -79,50 +85,100 @@ class PairsTradingBroker(Broker):
 
     def trade(
             self,
-            action: int,
-            dollar_amount: List[Union[int, float]],
-            current_portfolio: List[float],
-            current_state: pd.Series
-    ):
+            target_position: int,
+            current_portfolio: PairsTradingPortfolio,
+            current_state: np.ndarray
+            ):
         """
         The main function for trading. Takes in the required information and returns the new positions and dollar
         amounts after executing the desired trades
 
         Args:
-            action: An integer representing the `leverage` effect to end at, i.e. 3 means 3x Long/Short
-            dollar_amount: A list containing the dollar amounts to trade in. This with action decides the target dollar
-                amount of each asset to end at, i.e. `action = 1` and `dollar_amount = [1000, -500]` results in a target
-                portfolio of long 1000 dollars of the first asset and short 500 dollars of the second asset
-            current_portfolio: A list containing the current portfolio with the amount of cash first, followed by the
-                dollar amounts in each asset
-            current_state: A Pandas Series with the current residual imbalance state, followed by the mid price of
+            target_position: An integer representing the `leverage` effect to end at, i.e. 3 means 3x Long/Short
+            current_portfolio: A PairsTradingPortfolio representing the current portfolio
+            current_state: A NumPy Array with the current residual imbalance state, followed by the mid price of
                 asset 1 and asset 2 respectively
 
-        Returns: A tuple of lists, the first list is the new portfolio with cash, dollars in asset 1, dollars in asset 2
-            and the second being the number of shares in each asset
+        Returns: The current portfolio modified with the necessary trades
 
         """
-        ...
+        action = target_position - current_portfolio.position
 
-    def _trading_costs(self, current_shares, target_shares, mid_price):
+        shares_prices = self._get_shares_prices(current_portfolio, action)
+
+        asset1_cost = self._trading_costs(*shares_prices[0])
+        asset2_cost = self._trading_costs(*shares_prices[1])
+
+        asset1_trade = PairsTradingTrade(
+                asset=1,
+                shares=shares_prices[0][0],
+                execution_price=shares_prices[0][1],
+                total_cost=asset1_cost,
+                buy_sell=BuySell.Buy if asset1_cost > 0 else BuySell.Sell,
+                mid_price=current_portfolio.mid_prices[0]
+                )
+
+        asset2_trade = PairsTradingTrade(
+                asset=2,
+                shares=shares_prices[2][0],
+                execution_price=shares_prices[2][1],
+                total_cost=asset2_cost,
+                buy_sell=BuySell.Buy if asset2_cost > 0 else BuySell.Sell,
+                mid_price=current_portfolio.mid_prices[1]
+                )
+        new_portfolio = current_portfolio + asset1_trade + asset2_trade
+        new_portfolio.position = target_position
+
+        return new_portfolio
+
+    def _trading_costs(self, shares, price):
         """
         Calculates all costs associated with trading between two positions with a certain mid price. Takes care of the
         actual transaction costs along with the fixed and variable costs and trading at the bid/ask spread.
 
         Args:
-            current_shares: A float of the current shares of the asset
-            target_shares: A float of the desired shares of the asset
-            mid_price: A float of the current mid-price of the asset
+            shares: A float of the shares of the asset to trade
+            price: A float of the current trading price of the asset
 
-        Returns: A float of the total cost (profit) of buying (selling) from current shares to target shares at the
-            bid/ask spread
+        Returns: A float of the total cost (profit) of buying (selling) the given shares at the bid/ask spread
 
         """
-        ...
+
+        cost = shares * price
+        if cost > 0:
+            total_cost = cost * (1 + self.variable_buy_cost) + self.fixed_buy_cost
+        else:
+            total_cost = cost * (1 + self.variable_sell_cost) + self.fixed_sell_cost
+
+        return total_cost
+
+    def _get_shares_prices(self, portfolio, action):
+        """
+        Calculates the number of shares and the price at which to trade given the multiplier and portfolio
+
+        Args:
+            portfolio: The current PairsTradingPortfolio
+            action: The desired action to take
+
+        Returns:
+            Tuple of Tuples with the first index being the number of shares to trade and the second being the price at
+                which to trade
+
+        """
+        prices = (
+            self._get_trade_price(portfolio.mid_prices[0], action > 0),
+            self._get_trade_price(portfolio.mid_prices[1], action < 0)
+            )
+
+        dollars = (action * self.amounts[0], action * self.amounts[1])
+
+        shares = (dollars[0] / prices[0], dollars[1] / prices[1])
+
+        return tuple(zip(shares, prices))
 
     def _get_trade_price(self, mid_price, buy):
         """
-        Calculates the trade price from the mid-price and spread provided.
+        Calculates the trade price from the mid-price, provided spread, and if the order is a buy or sell.
 
         Args:
             mid_price: The current mid-price of an asset
@@ -131,8 +187,11 @@ class PairsTradingBroker(Broker):
         Returns: A float of the trade price
 
         """
-        ...
+        if buy:
+            return mid_price + self.slippage
+        else:
+            return mid_price - self.slippage
 
-    def _reset_broker(self, current_state):
+    def _reset_broker(self):
 
         self._traded = False
