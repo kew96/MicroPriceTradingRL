@@ -87,7 +87,6 @@ class PairsTradingBroker(Broker):
             self,
             target_position: int,
             current_portfolio: PairsTradingPortfolio,
-            current_state: np.ndarray
             ):
         """
         The main function for trading. Takes in the required information and returns the new positions and dollar
@@ -96,8 +95,6 @@ class PairsTradingBroker(Broker):
         Args:
             target_position: An integer representing the `leverage` effect to end at, i.e. 3 means 3x Long/Short
             current_portfolio: A PairsTradingPortfolio representing the current portfolio
-            current_state: A NumPy Array with the current residual imbalance state, followed by the mid price of
-                asset 1 and asset 2 respectively
 
         Returns: The current portfolio modified with the necessary trades
 
@@ -148,7 +145,7 @@ class PairsTradingBroker(Broker):
         if cost > 0:
             total_cost = cost * (1 + self.variable_buy_cost) + self.fixed_buy_cost
         else:
-            total_cost = cost * (1 + self.variable_sell_cost) + self.fixed_sell_cost
+            total_cost = cost * (1 - self.variable_sell_cost) + self.fixed_sell_cost
 
         return total_cost
 
