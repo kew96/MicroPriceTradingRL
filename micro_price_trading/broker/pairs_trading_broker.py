@@ -117,8 +117,8 @@ class PairsTradingBroker(Broker):
 
         asset2_trade = PairsTradingTrade(
                 asset=2,
-                shares=shares_prices[2][0],
-                execution_price=shares_prices[2][1],
+                shares=shares_prices[1][0],
+                execution_price=shares_prices[1][1],
                 total_cost=asset2_cost,
                 buy_sell=BuySell.Buy if asset2_cost > 0 else BuySell.Sell,
                 mid_price=current_portfolio.mid_prices[1]
