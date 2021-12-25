@@ -9,8 +9,8 @@ import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
+from micro_price_trading.history.history import Allocation
 from micro_price_trading.preprocessing.preprocess import Data
-from micro_price_trading.broker.pairs_trading_broker import Allocation
 
 from micro_price_trading import PairsTradingBroker, TwoAssetSimulation
 
