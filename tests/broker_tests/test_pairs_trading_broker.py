@@ -18,7 +18,6 @@ class TestPairsTradingBroker(unittest.TestCase):
                 variable_buy_cost=0.5,
                 variable_sell_cost=0.1,
                 spread=0.01,
-                no_trade_period=5,
                 max_position=2
                 )
 

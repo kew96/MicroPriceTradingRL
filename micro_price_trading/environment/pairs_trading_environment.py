@@ -30,61 +30,52 @@ class PairsTradingEnvironment(
     spaces along with resetting the required parameters.
 
     Attributes:
-        data: A Data object that contains cleaned Pandas DataFrames ready for simulation
-        action_space: The Discrete action space of possible actions. Is of size 2 * max_position + 1 (center around 0
-            and allow for -max_position to max_position)
-        observation_space: The MultiDiscrete observation space with size equal to the number of unique residual
-            imbalance states
-        no_trade_period: The number of steps to wait after trading before you can trade again
-        slippage: Half the Bid/Ask spread
+        state_index: The current time step/index
+        terminal: A boolean indicating whether the iteration is done
+        no_trade_period: The period in which we can't trade following a change in position
+        reward_func: A callable that returns the reward for a given action
+        observation_space: The OpenAI Gym representation of the state/observation space
+        action_space:  The OpenAI Gym representation of the action space
+        no_trade_penalty: The penalty that not trading within a set amount of time induces
+        min_trades: The number of trades required over a set amount of time
+        lookback: The time in which we must hit `min_trades`
+        threshold: The early stopping threshold of the overall value of the portfolio
+        hard_stop_penalty: The penalty induced if we must stop early
+        current_portfolio: The current PairsTradingPortfolio
+        readable_action_space: The human readable format of the actions
+        amounts: The dollar ratios to buy each asset in
         fixed_buy_cost: The fixed dollar amount to be charged for every `buy` order
         fixed_sell_cost: The fixed dollar amount to be charged for every `sell` order
         variable_buy_cost: The variable amount to be charged for every `buy` order as a percent, i.e. 0.2 means
             that there is a 20% fee applied to each `buy` transaction
         variable_sell_cost: The variable amount to be charged for every `sell` order as a percent, i.e. 0.2 means
             that there is a 20% fee applied to each `sell` transaction
-        min_trades: The minimum amount of trades desired over a given period, can't be set to zero to ignore
-        lookback: The lookback period for the minimum amount of desired trades, set to None to ignore
-        no_trade_penalty: The penalty to impose if the agent has not traded the minimum amount of times over the
-            lookback period in dollars
-        threshold: The stop loss threshold, when the total portfolio value decreases beyond this, the iteration is over
-            and a negative, specified reward is given, set to negative infinity to ignore
-        hard_stop_penalty: The dollar penalty to impose if we end the iteration early due to stop loss requirements
-        reward_func: callable that takes current portfolio, previous portfolio, action, previous state and current state
-            and returns the reward
-        current_state: The initial state to start the Broker at
-        start_allocation: The initial allocation in dollars to both assets, defines how much to trade
+        slippage: Half the Bid/Ask spread
         max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
             Short/Long at any time, at most
-        num_trades: The number of trades of each type as a list of dictionaries
-        readable_action_space: The human readable format of the actions
-        portfolio: The current portfolio (cash, asset 1, asset 2) in dollars
-        portfolio_value: The current portfolio value
-        shares: The current shares held of asset 1, asset 2
-        position: The current leverage position
         max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
             Short/Long at any time, at most
-        num_trades: The number of trades of each type as a list of dictionaries
-        readable_action_space: The human readable format of the actions
-        steps: the number of steps created for each simulated data stream.
-            Note: each row in attribute data is a 10 second step
 
     Properties:
-        portfolio_history: An array of the dollar positions (cash, asset 1, asset 2) for each step in all runs
-        portfolio_values_history: An array of the dollar value of the portfolio for each step in all runs
-        share_history: An array of amount of shares of each asset for each step in all runs
+        portfolio_history: An array of the PairsTradingPortfolios from all iterations
+        share_history: An array of the amount of shares of each asset for each step in all runs
+        cash_history: An array of the cash position for each step in all runs
+        asset_paths: An array of the asset prices for each step in all runs
         positions_history: The amount of leverage for each step in all runs
-        trade_indices_history: An array of all trade indices for each step in all runs
-        long_short_indices_history: An array of all long/short trade indices for each step in all runs
-        short_long_indices_history: An array of all short/long trade indices for each step in all runs
+        portfolio_value_history: An array of the dollar value of the portfolio for each step in all runs
 
     Methods:
-        step
-        trade
-        plot
-        reset
-        render
-        copy_env
+        step: Step function as defined by OpenAI Gym, parses an action according to all defined logic
+        parse_state: Breaks a residual imbalance state into its integer parts
+        logical_update: Performs all updates after any trades have occurred
+        get_reward: Returns the reward from a given action
+        reset: Resets the environment and all parent classes for another training/testing iteration
+        plot: Parses various plotting descriptions and plots the desired data
+        _generate_readable_action_space: Creates a dictionary mapping actions to their human readable format
+        _update_history: Stores current portfolio and any additional ones if prices are passed
+        _collapse_state_trades: Creates a dictionary with residual imbalance states and positions as keys and the
+            corresponding number of trades as the values
+        _reset_history: Resets the history for another tracking run
     """
 
     # 1 TODO: Add inventory to state space
@@ -118,7 +109,6 @@ class PairsTradingEnvironment(
                 seed=seed
                 )
         self.state_index = 0
-        self.last_state = None
         self.terminal = False
 
         self.no_trade_period = no_trade_period
@@ -232,9 +222,10 @@ class PairsTradingEnvironment(
             self.current_state = self.states[stop, :]
 
             self._update_history(
-                    portfolio=self.portfolio,
+                    portfolio=self.current_portfolio,
                     period_states=self.states[start:stop]
                     )
+            print(len(self._portfolios))
         else:
             self.state_index += 1
             self.current_state = self.states[self.state_index, :]
@@ -291,7 +282,7 @@ class PairsTradingEnvironment(
     def plot(
             self,
             data='portfolio_history',
-            num_env_to_analyze=1,
+            plot_num=1,
             state=None
             ):
         """
@@ -301,12 +292,11 @@ class PairsTradingEnvironment(
             `asset_paths`
             `summarize_decisions`
             `summarize_state_decisions`
-            `state_frequency`
             `learning_progress`
 
         Args:
             data: A string specifying the data to visualize
-            num_env_to_analyze: Only used in some options, combines the most recent iterations
+            plot_num: Only used in some options, combines the most recent iterations
             state: Only used in some options, the specific residual imbalance state to visualize
         """
         options = [
@@ -315,7 +305,6 @@ class PairsTradingEnvironment(
             'asset_paths',
             'summarize_decisions',
             'summarize_state_decisions',
-            'state_frequency',
             'learning_progress'
             ]
 
@@ -331,25 +320,28 @@ class PairsTradingEnvironment(
         if data == 'portfolio_history':
             fig, axs = plt.subplots(figsize=(15, 10))
 
+            portfolio_values = self.portfolio_value_history[-plot_num]
+
             axs.plot(
-                    range(len(self._portfolio_values_history[-2])), self._portfolio_values_history[-2], label='Total',
+                    portfolio_values, label='Total',
                     c='k', alpha=0.7
                     )
             axs.set_ylabel('Total Value', fontsize=14)
 
-            portfolio_values = np.array(self._portfolio_values_history[-2])
+            long_short_indices = self.long_short_indices[-plot_num]
+            short_long_indices = self.short_long_indices[-plot_num]
 
             axs.scatter(
-                    self._long_short_indices_history[-2],
-                    portfolio_values[self._long_short_indices_history[-2]],
+                    long_short_indices,
+                    portfolio_values[long_short_indices],
                     s=120,
                     c='g',
                     marker='^',
                     label='Long/Short'
                     )
             axs.scatter(
-                    self._short_long_indices_history[-2],
-                    portfolio_values[self._short_long_indices_history[-2]],
+                    short_long_indices,
+                    portfolio_values[short_long_indices],
                     s=120,
                     c='r',
                     marker='v',
@@ -364,10 +356,9 @@ class PairsTradingEnvironment(
         elif data == 'position_history':
             fig, axs = plt.subplots(figsize=(15, 10))
 
-            idxs = self._trade_indices_history[-2]
-            positions = np.array(self._positions_history[-2])
+            positions = self.positions_history[-plot_num]
 
-            axs.plot(idxs, positions[idxs], 'b-', label='Asset 1')
+            axs.plot(positions, 'b-', label='Asset 1')
             axs.set_ylabel('Asset 1 Position', fontsize=14)
 
             fig.legend(fontsize=14)
@@ -377,24 +368,30 @@ class PairsTradingEnvironment(
 
         elif data == 'asset_paths':
             fig, axs = plt.subplots(2, figsize=(15, 13))
-            axs[0].plot(self, self._last_states[:, 1], c='k', alpha=0.7)
+
+            asset_paths = self.asset_paths[-plot_num]
+
+            axs[0].plot(asset_paths[:, 0], c='k', alpha=0.7)
             axs[0].set_title('Asset 1')
 
-            axs[1].plot(self._trade_indices_history[-2], self._last_states[:, 2], c='k', alpha=0.7)
+            axs[1].plot(asset_paths[:, 1], c='k', alpha=0.7)
             axs[1].set_title('Asset 2')
 
             for idx, ax in enumerate(axs):
+                long_short_indices = self.long_short_indices[-plot_num]
+                short_long_indices = self.short_long_indices[-plot_num]
+
                 ax.scatter(
-                        self._long_short_indices_history[-2],
-                        self._last_states[self._long_short_indices_history[-2], idx + 1],
+                        long_short_indices,
+                        asset_paths[long_short_indices, idx],
                         s=120,
                         c='g',
                         marker='^',
                         label='Long/Short'
                         )
                 ax.scatter(
-                        self._short_long_indices_history[-2],
-                        self._last_states[self._short_long_indices_history[-2], idx + 1],
+                        short_long_indices,
+                        asset_paths[short_long_indices, idx],
                         s=120,
                         c='r',
                         marker='v',
@@ -407,29 +404,32 @@ class PairsTradingEnvironment(
             fig.savefig(PAIRS_TRADING_FIGURES.joinpath('asset_paths.png'), format='png')
 
         elif data == 'summarize_decisions':
-            """
-            This plots the actions made in each state. Easiest way to visualize how the agent tends to act in each state
-            """
-            collapsed = self._collapse_state_trades(num_env_to_analyze)
-            states = []
-            d = {}  # keys are states, values are (unique, counts)
+            collapsed = self._collapse_state_trades(plot_num)
+            res_imb_states = sorted(list(collapsed.keys()))
+            frequencies = np.zeros((self.max_position*2+1, len(res_imb_states)))
 
             fig, ax = plt.subplots(figsize=(15, 10))
-            for key in sorted(collapsed):
-                states.append(key)
-                unique, counts = np.unique(collapsed[key], return_counts=True)
-                d[key] = (unique, counts)
-            freq_dict = {}
-            for i in range(-self.max_position, self.max_position + 1):
-                freq_dict[i] = [d[key][1][list(d[key][0]).index(i)] if i in d[key][0] else 0 for key in
-                                sorted(d.keys())]
 
-            for pos, act in zip(range(-self.max_position, self.max_position + 1), range(self.action_space.n)):
+            for idx, action in enumerate(range(self.max_position, -self.max_position-1, -1)):
+                counts = list()
+                for state in res_imb_states:
+                    counts.append(collapsed[state].get(action, 0))
+
+                frequencies[idx] = counts
+
+            cumulative_frequencies = frequencies.cumsum(axis=0)
+
+            for idx, row in enumerate(frequencies):
+                if idx == 0:
+                    bottom = np.zeros(len(row))
+                else:
+                    bottom = cumulative_frequencies[idx-1]
+
                 ax.bar(
-                        sorted(d.keys()),
-                        freq_dict[pos],
-                        label=self.readable_action_space[act],
-                        bottom=sum([np.array(freq_dict[j]) for j in range(pos)])
+                        range(len(row)),
+                        row,
+                        label=self.readable_action_space[idx],
+                        bottom=bottom
                         )
 
             ax.legend()
@@ -437,42 +437,26 @@ class PairsTradingEnvironment(
             plt.show()
 
         elif data == 'summarize_state_decisions':
-            """
-            This plots the distribution of actions in a given state.
-            """
-            if state:
-                collapsed = self._collapse_state_trades(num_env_to_analyze)
-                unique, counts = np.unique(collapsed[state], return_counts=True)
-                plt.figure(figsize=(15, 10))
-                plt.bar([self.readable_action_space[i] for i in unique], counts)
-                plt.xticks([self.readable_action_space[i] for i in unique], fontsize=14)
-                plt.show()
-            else:
-                print('Must include state')
+            assert state, 'State must be included to `summarize_state_decisions`'
+            actions_in_state = self._collapse_state_trades(plot_num).get(state, {})
 
-        elif data == 'state_frequency':
-            """
-            Function to plot number of observations in each state. Will show distribution of states
-            """
-            collapsed = self._collapse_state_trades(2)
-            states = []
-            freq = []
+            if not actions_in_state:
+                raise ValueError(f'No data found for state: {state}')
 
             fig, ax = plt.subplots(figsize=(15, 10))
 
-            for key in sorted(collapsed):
-                states.append(key)
-                freq.append(len(collapsed[key]))
-
-            ax.bar(states, freq)
-            plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right', fontsize=10)
-            plt.show()
+            ax.bar(range(len(actions_in_state)), actions_in_state.values())
+            ax.set_xticklabels(
+                    [self.readable_action_space[action+self.max_position] for action in actions_in_state.keys()],
+                    fontsize=14
+                    )
+            ax.show()
 
         elif data == 'learning_progress':
-            values = [entry[-1] for entry in self.portfolio_values_history]
+            values = self.portfolio_value_history[-1]
             # Define the figure
-            f, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
-            f.suptitle(" Grand Avg " + str(np.round(np.mean(values), 3)))
+            fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+            fig.suptitle(" Grand Avg " + str(np.round(np.mean(values), 3)))
             ax[0].plot(values, label='Value per run')
             ax[0].axhline(.08, c='red', ls='--', label='goal')
             ax[0].set_xlabel('Episodes ')
@@ -480,12 +464,12 @@ class PairsTradingEnvironment(
             x = range(len(values))
             ax[0].legend()
             # Calculate the trend
-            try:
-                z = np.polyfit(x, values, 1)
-                p = np.poly1d(z)
-                ax[0].plot(x, p(x), "--", label='trend')
-            except:
-                print('')
+            # try:
+            z = np.polyfit(x, values, 1)
+            p = np.poly1d(z)
+            ax[0].plot(x, p(x), "--", label='trend')
+            # except Exception:  # Add back in if needed, specify caught Exception
+            #     print('')
 
             # Plot the histogram of results
             ax[1].hist(values[-100:])
