@@ -1,7 +1,5 @@
 import unittest
 
-import numpy as np
-
 from micro_price_trading.config import BuySell
 
 from micro_price_trading.broker import PairsTradingBroker
