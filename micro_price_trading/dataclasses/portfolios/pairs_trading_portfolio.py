@@ -9,6 +9,7 @@ from micro_price_trading.dataclasses.trades import PairsTradingTrade
 class PairsTradingPortfolio(Portfolio):
     trade: Optional[Tuple[PairsTradingTrade]] = None
     position: int = 0
+    forced_action: bool = False
 
     def value(self, prices: Optional[Tuple[float]] = None):
         execution_prices = prices or self.mid_prices
@@ -19,12 +20,13 @@ class PairsTradingPortfolio(Portfolio):
                         )
         )
 
-    def copy_portfolio(self, new_state, new_prices):
+    def copy_portfolio(self, new_state, new_prices, forced_action=False):
         new_portfolio = PairsTradingPortfolio(**self.__dict__)
         new_portfolio.time += 1
         new_portfolio.res_imbalance_state = new_state
         new_portfolio.mid_prices = new_prices
         new_portfolio.trade = None
+        new_portfolio.forced_action = forced_action
         return new_portfolio
 
     def __add__(self, other):

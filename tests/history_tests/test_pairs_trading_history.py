@@ -58,8 +58,8 @@ class TestPairsTradingHistory(unittest.TestCase):
 
     def test_update_history_batch(self):
         p1 = self.history.current_portfolio
-        p2 = p1.copy_portfolio('300', (30, 40))
-        p3 = p2.copy_portfolio('111', (5, 10))
+        p2 = p1.copy_portfolio('300', (30, 40), forced_action=True)
+        p3 = p2.copy_portfolio('111', (5, 10), forced_action=True)
 
         self.history._update_history(p1, np.array([['300', 30, 40], ['111', 5, 10]], dtype=object))
 
@@ -138,12 +138,14 @@ class TestPairsTradingHistory(unittest.TestCase):
                 )
 
         history._update_history(
-                history.current_portfolio, np.array([
+                history.current_portfolio,
+                np.array([
                     ['1', 1, 1],
                     ['0', 1, 1],
                     ['1', 1, 1],
                     ['2', 1, 1]
-                    ], dtype=object)
+                    ], dtype=object),
+                forced_actions=False
                 )
         history._reset_history(['0', 2, 2])
 
@@ -219,13 +221,10 @@ class TestPairsTradingHistory(unittest.TestCase):
                 },
             '1': {
                 0: 2,
-                2: 1,
-                -1: 1
+                2: 1
                 },
             '2': {
-                0: 1,
-                2: 2,
-                -1: 2
+                0: 1
                 }
             }
 
@@ -258,7 +257,7 @@ class TestPairsTradingHistory(unittest.TestCase):
 
         result = history.short_long_indices
 
-        target = np.zeros((5, 3))
+        target = np.zeros((3, 5))
         target[:] = np.nan
 
         np.testing.assert_array_equal(result, np.array(target))

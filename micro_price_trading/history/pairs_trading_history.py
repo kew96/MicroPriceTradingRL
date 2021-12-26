@@ -164,7 +164,8 @@ class PairsTradingHistory(History):
     def _update_history(
             self,
             portfolio: PairsTradingPortfolio,
-            period_states: Optional[np.ndarray] = None
+            period_states: Optional[np.ndarray] = None,
+            forced_actions=True
             ) -> None:
         """
         Helper method for updating all history tracking with single or multiple time steps as necessary
@@ -173,13 +174,16 @@ class PairsTradingHistory(History):
             portfolio: A list of the current portfolio dollar amounts, [cash, asset 1, asset 2]
             period_states: A Pandas DataFrame with the first and second columns as the asset prices,
                 `len(period_prices)` should equal `steps`. Should include the current prices as the first row.
+            forced_actions: Helper parameter for testing, dictates whether batches should be forced actions. Almost
+                all cases will require this to be `True`
         """
         portfolios = [portfolio]
         if period_states is not None:
             for state in period_states:
                 portfolio = portfolio.copy_portfolio(
                         state[0],
-                        tuple(state[1:])
+                        tuple(state[1:]),
+                        forced_action=forced_actions
                         )
                 portfolios.append(portfolio)
         self._portfolios[-1].extend(portfolios)
@@ -188,15 +192,24 @@ class PairsTradingHistory(History):
             self,
             num_env_to_analyze: int = 1
             ) -> Dict[str, Dict[int, int]]:
+        """
+        Collapse the last `num_env_to_analyze` portfolios
+        Args:
+            num_env_to_analyze:
+
+        Returns:
+
+        """
         num_trades = dict()
 
         for portfolio_set in self.portfolio_history[-num_env_to_analyze:]:
             for portfolio in portfolio_set:
-                state = num_trades.get(portfolio.res_imbalance_state, dict())
-                state_position = state.get(portfolio.position, 0)
+                if not portfolio.forced_action:
+                    state = num_trades.get(portfolio.res_imbalance_state, dict())
+                    state_position = state.get(portfolio.position, 0)
 
-                state[portfolio.position] = state_position + 1
-                num_trades[portfolio.res_imbalance_state] = state
+                    state[portfolio.position] = state_position + 1
+                    num_trades[portfolio.res_imbalance_state] = state
 
         return num_trades
 
