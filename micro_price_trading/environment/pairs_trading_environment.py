@@ -12,12 +12,19 @@ import matplotlib.pyplot as plt
 from micro_price_trading.history.history import Allocation
 from micro_price_trading.preprocessing.preprocess import Data
 
-from micro_price_trading import PairsTradingBroker, TwoAssetSimulation
+from micro_price_trading import PairsTradingHistory, PairsTradingBroker, TwoAssetSimulation
 
-from micro_price_trading.config import PAIRS_TRADING_FIGURES, TEN_SECOND_DAY
+from micro_price_trading.reward_functions import portfolio_value_change
+
+from micro_price_trading.config import PAIRS_TRADING_FIGURES, TEN_SECOND_DAY, ArrayLike
 
 
-class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
+class PairsTradingEnvironment(
+        TwoAssetSimulation,
+        PairsTradingHistory,
+        PairsTradingBroker,
+        gym.Env
+        ):
     """
     The main pairs trading environment that conforms to OpenAI Gym's format. This handles all input and output actions/
     spaces along with resetting the required parameters.
@@ -93,12 +100,13 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             variable_buy_cost: float = 0.0,
             variable_sell_cost: float = 0.0,
             min_trades: int = 1,
-            lookback: Optional[int] = None,
+            lookback: int = -1,
             no_trade_penalty: Union[float, int] = 0,
             threshold: int = -np.inf,
+            start_cash: float = 100,
             hard_stop_penalty: int = 0,
             reward_func: Callable = portfolio_value_change,
-            start_allocation: Allocation = None,
+            start_allocation: Allocation = (500, -1000),
             max_position: int = 10,
             steps: int = TEN_SECOND_DAY,
             seed: Optional[int] = None
@@ -109,27 +117,21 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
                 steps=steps,
                 seed=seed
                 )
-
-        if start_allocation is None:
-            start_allocation = [1000, -500]
-
         self.state_index = 0
         self.last_state = None
-        self.current_state = self.states[self.state_index, :]
         self.terminal = False
+
+        self.no_trade_period = no_trade_period
 
         PairsTradingBroker.__init__(
                 self,
-                current_state=self.current_state,
-                start_allocation=start_allocation,
+                amounts=start_allocation,
                 fixed_buy_cost=fixed_buy_cost,
                 fixed_sell_cost=fixed_sell_cost,
                 variable_buy_cost=variable_buy_cost,
                 variable_sell_cost=variable_sell_cost,
                 spread=spread,
-                no_trade_period=no_trade_period,
-                max_position=max_position,
-                reverse_mapping=self._reverse_mapping
+                max_position=max_position
                 )
 
         # RL/OpenAI Gym requirements
@@ -137,30 +139,41 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
 
         self.observation_space = MultiDiscrete(
                 [
-                    len(self.mapping),  # Set of residual imbalance states
+                    self._res_bins,  # Set of residual states
+                    self._imb1_bins,  # Set of imbalance 1 states
+                    self._imb2_bins,  # Set of imbalance 2 states
                     # self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
                     # self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value,
                     # self.ite,  # Number of trading periods in run,
-                    # self.max_position*2+1  # Current position,
-                    1  # Needed for compatability with other packages
+                    # self.max_position*2+1  # Current position
                     ]
                 )
         self.action_space = Discrete(max_position * 2 + 1)
 
         self._max_episode_steps = 10_000
 
-        # TODO: Move to parent classes
         self.no_trade_penalty = no_trade_penalty
-        self.trades = [1]
         self.min_trades = min_trades
         self.lookback = lookback
-        assert lookback is None or lookback == 0 or lookback > self.no_trade_period, \
+        assert lookback < 0 or lookback > self.no_trade_period, \
             f'lookback={lookback}, no_trade_period={self.no_trade_period}'
 
         self.threshold = threshold
         self.hard_stop_penalty = hard_stop_penalty
 
-    def step(self, action):
+        PairsTradingHistory.__init__(
+                self,
+                start_state=self.current_state,
+                start_cash=start_cash,
+                max_steps=steps,
+                start_allocation=start_allocation,
+                max_position=max_position
+                )
+
+    def step(
+            self,
+            action: ArrayLike
+            ):
         """
         The step function as outlined by OpenAI Gym. Used to take an action and return the necessary information for
         an RL agent to learn.
@@ -172,107 +185,86 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
             environment is in the terminal state (True/False), and a dictionary with debugging information
 
         """
-        old_portfolio = self.portfolio.copy()
-        self.last_state = self.current_state
 
         action -= self.max_position
 
-        if self.position != action:
+        if self.current_portfolio.position != action:
             self._traded = True
-            self.portfolio, self.shares = self.trade(
-                    action,
-                    self._start_allocation,
-                    old_portfolio,
-                    self.current_state
+            self.current_portfolio = self.trade(
+                    target_position=action,
+                    current_portfolio=self.current_portfolio
                     )
 
-        self.logical_update(action)
+        self.logical_update()
 
         self.terminal = self.state_index >= len(self.states) - 1
 
-        self.portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
+        old_portfolio = self.current_portfolio
 
-        reward = self.get_reward(old_portfolio, action)
+        reward = self.get_reward(old_portfolio)
 
-        if sum(self.portfolio) <= self.threshold:
+        if self.current_portfolio.value() <= self.threshold:
             self.terminal = True
 
         return (
-            jnp.asarray([self.current_state[0], 0]),
+            jnp.asarray(self.parse_state(self.current_state[0])),
             reward,
             self.terminal,
             {}
             )
 
-    def logical_update(self, action):
-        """
-        Passes the correct parameters to the History's update function based on the action and other current details
+    @staticmethod
+    def parse_state(state):
+        return [int(s) for s in state]
 
-        Args:
-            action: The action we take during this step
+    def logical_update(self):
+        """
+        Passes the correct parameters to the History's update function based on the action and other current details.
+        Then updates the current portfolio to contain the next state
+
         """
         if self._traded:
             self._traded = False
 
-            start = self.state_index
+            start = self.state_index + 1
             self.state_index += 1 + self.no_trade_period
             stop = min(self.state_index, len(self.states) - 1)
             self.current_state = self.states[stop, :]
 
             self._update_history(
                     portfolio=self.portfolio,
-                    shares=self.shares,
-                    position=action,
-                    steps=stop - start,
-                    trade_index=start,
-                    long_short=action > self.position,
-                    period_states=self.states[start:stop, 1:]
+                    period_states=self.states[start:stop]
                     )
-
-            ######## MOVE ###########
-            self.trades.extend([1] + [0] * (stop - start - 1))
-
-            #########################
-
-            self.position = action
         else:
             self.state_index += 1
             self.current_state = self.states[self.state_index, :]
 
-            next_portfolio = self._update_portfolio(self.portfolio, self.shares, self.current_state)
+            self._update_history(portfolio=self.current_portfolio)
 
-            self._update_history(
-                    portfolio=next_portfolio,
-                    shares=self.shares,
-                    position=action,
-                    steps=1
-                    )
+        self.current_portfolio = self.current_portfolio.copy_portfolio(
+                self.current_state[0],
+                self.current_state[1:]
+                )
 
-            ####### MOVE ########
-            self.trades.append(0)
-
-            #####################
-
-    def get_reward(self, old_portfolio, action):
+    def get_reward(self, old_portfolio):
         """
         Calculates reward based on current state and action information.
 
         Args:
-            old_portfolio: The previous portfolio prior to performing any actions in the current state
-            action: The action we take during this step
+            old_portfolio: The previous portfolio
 
         Returns: A float of the reward that we earn over this time step
 
         """
-        if sum(self.portfolio) <= self.threshold:
+        if self.current_portfolio.value() <= self.threshold:
             return -self.hard_stop_penalty
 
-        if self.lookback and self.lookback < len(self.trades) and sum(self.trades[-self.lookback:]) < self.min_trades:
+        if 0 < self.lookback < self.state_index and self._num_trades_in_period(self.lookback) < self.min_trades:
             penalty = self.no_trade_penalty
         else:
             penalty = 0
 
-        return self.reward_func(self.portfolio, old_portfolio, action, self.last_state, self.current_state) - penalty
+        return self.reward_func(self.current_portfolio, old_portfolio) - penalty
 
     def reset(self):
         """
@@ -287,10 +279,11 @@ class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
         self.current_state = self.states[self.state_index, :]
         self.terminal = False
 
-        PairsTradingBroker._reset_broker(self, current_state=self.current_state)
+        PairsTradingBroker._reset_broker(self)
 
-        self.num_trades.append(dict())
-        return jnp.asarray([self.current_state[0], 0])
+        PairsTradingHistory._reset_history(self, self.current_state)
+
+        return jnp.asarray([self.parse_state(self.current_state[0]), 0])
 
     def render(self, mode="human"):
         return None

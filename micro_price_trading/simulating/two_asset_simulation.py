@@ -57,18 +57,7 @@ class TwoAssetSimulation(Simulation):
 
         simu = pd.DataFrame(simu)
         simu.columns = ['states', 'mid_1', 'mid_2']
-        simu.states = simu.states.replace(self.mapping)
         return simu.values
-
-    def _get_mapping(self):
-        rows = []
-        for price_relation_d in range(self._res_bins):
-            for s1_imb_d in range(self._imb1_bins):
-                for s2_imb_d in range(self._imb2_bins):
-                    s1_imb_d, s2_imb_d, price_relation_d = str(s1_imb_d), str(s2_imb_d), str(price_relation_d)
-                    rows.append(price_relation_d + s1_imb_d + s2_imb_d)
-
-        return dict(zip(rows, range(len(rows))))
 
     def _reset_simulation(self):
         self._last_states = self.states.copy()

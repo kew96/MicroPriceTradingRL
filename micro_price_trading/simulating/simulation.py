@@ -24,18 +24,11 @@ class Simulation(ABC):
 
         self.ite = steps or len(data) // 2 - 1
 
-        self.mapping = self._get_mapping()
-        self._reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.states = self._simulate()
         self.current_state = self.states[0, :]
 
     @abstractmethod
     def _simulate(self):
-        raise NotImplementedError
-
-    @staticmethod
-    @abstractmethod
-    def _get_mapping():
         raise NotImplementedError
 
     @abstractmethod

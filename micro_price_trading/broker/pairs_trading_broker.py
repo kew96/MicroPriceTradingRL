@@ -77,7 +77,6 @@ class PairsTradingBroker(Broker):
         self.slippage = spread / 2
 
         # No trade period
-        self.no_trade_period = no_trade_period
         self._traded = False
 
         # Maximum position

@@ -36,7 +36,6 @@ class PairsTradingHistory(History):
             start_state: np.ndarray,
             start_cash: Union[int, float],
             max_steps: int,
-            reverse_mapping: dict,
             start_allocation: Allocation = None,
             max_position: int = 10
             ):
@@ -45,7 +44,6 @@ class PairsTradingHistory(History):
         Args:
             start_state: The initial state to start the History at
             start_allocation: The initial allocation in dollars to both assets
-            reverse_mapping: The reversed mapping from integers to residual imbalance states
             max_position: The maximum amount of `leverages` allowed, i.e. 5 means you can be 5x Long/Short or 5x
                 Short/Long at any time, at most
         """
@@ -64,7 +62,7 @@ class PairsTradingHistory(History):
                 cash=start_cash,
                 shares=start_allocation,
                 mid_prices=tuple(start_state[1:]),
-                res_imbalance_state=reverse_mapping.get(start_state[0], '---'),
+                res_imbalance_state=start_state[0],
                 )
 
         self._portfolios = [[]]
@@ -72,9 +70,6 @@ class PairsTradingHistory(History):
         # USED FOR RESET ONLY
         self._start_allocation = start_allocation
         self._start_cash = start_cash
-
-        # NEEDED FOR UPDATING DICTIONARY
-        self.__reverse_mapping = reverse_mapping
 
     @property
     def portfolio_history(self) -> np.ndarray:
@@ -161,7 +156,7 @@ class PairsTradingHistory(History):
         if period_states is not None:
             for state in period_states:
                 portfolio = portfolio.copy_portfolio(
-                        self.__reverse_mapping.get(state[0], '---'),
+                        state[0],
                         tuple(state[1:])
                         )
                 portfolios.append(portfolio)
@@ -196,6 +191,6 @@ class PairsTradingHistory(History):
                 cash=self._start_cash,
                 shares=self._start_allocation,
                 mid_prices=tuple(start_state[1:]),
-                res_imbalance_state=self.__reverse_mapping.get(start_state[0], '---'),
+                res_imbalance_state=start_state[0],
                 )
         self._portfolios.append([])

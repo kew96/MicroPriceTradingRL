@@ -13,10 +13,9 @@ class TestPairsTradingHistory(unittest.TestCase):
 
     def setUp(self) -> None:
         self.history = PairsTradingHistory(
-                start_state=np.array([0, 10, 20]),
+                start_state=np.array(['000', 10, 20], dtype=object),
                 start_cash=100,
                 max_steps=4,
-                reverse_mapping=dict(),
                 start_allocation=(10, -5),
                 max_position=2
                 )
@@ -27,7 +26,7 @@ class TestPairsTradingHistory(unittest.TestCase):
                 cash=100,
                 shares=(10, -5),
                 mid_prices=(10, 20),
-                res_imbalance_state='---',
+                res_imbalance_state='000',
                 trade=None,
                 position=0
                 )
@@ -59,10 +58,10 @@ class TestPairsTradingHistory(unittest.TestCase):
 
     def test_update_history_batch(self):
         p1 = self.history.current_portfolio
-        p2 = p1.copy_portfolio('---', (30, 40))
-        p3 = p2.copy_portfolio('---', (5, 10))
+        p2 = p1.copy_portfolio('300', (30, 40))
+        p3 = p2.copy_portfolio('111', (5, 10))
 
-        self.history._update_history(p1, np.array([[3, 30, 40], [17, 5, 10]]))
+        self.history._update_history(p1, np.array([['300', 30, 40], ['111', 5, 10]], dtype=object))
 
         self.assertEqual(self.history._portfolios, [[p1, p2, p3]])
 
@@ -72,12 +71,12 @@ class TestPairsTradingHistory(unittest.TestCase):
                 cash=100,
                 shares=(10, -5),
                 mid_prices=(2, 4),
-                res_imbalance_state='---',
+                res_imbalance_state='400',
                 trade=None,
                 position=0
                 )
 
-        self.history._reset_history([4, 2, 4])
+        self.history._reset_history(np.array(['400', 2, 4], dtype=object))
 
         self.assertEqual(self.history.current_portfolio, target_portfolio)
         self.assertEqual(len(self.history._portfolios), 2)
@@ -128,25 +127,25 @@ class TestPairsTradingHistory(unittest.TestCase):
 
         self.assertEqual(self.history.portfolio_value_history.shape, (3, 5))
 
-    def fill_history_with_trades(self):
+    @staticmethod
+    def fill_history_with_trades():
         history = PairsTradingHistory(
-                start_state=np.array([0, 10, 20]),
+                start_state=np.array(['0', 10, 20]),
                 start_cash=100,
                 max_steps=4,
-                reverse_mapping={0: '0', 1: '1', 2: '2'},
                 start_allocation=(10, -5),
                 max_position=2
                 )
 
         history._update_history(
-                history.current_portfolio, [
-                    [1, 1, 1],
-                    [0, 1, 1],
-                    [1, 1, 1],
-                    [2, 1, 1]
-                    ]
+                history.current_portfolio, np.array([
+                    ['1', 1, 1],
+                    ['0', 1, 1],
+                    ['1', 1, 1],
+                    ['2', 1, 1]
+                    ], dtype=object)
                 )
-        history._reset_history([0, 2, 2])
+        history._reset_history(['0', 2, 2])
 
         trade1 = PairsTradingTrade(
                 asset=0,
@@ -187,21 +186,21 @@ class TestPairsTradingHistory(unittest.TestCase):
         history._update_history(portfolio2)
 
         history._update_history(
-                portfolio3, [
-                    [2, 1, 1],
-                    [2, 1, 1]
-                    ]
+                portfolio3, np.array([
+                    ['2', 1, 1],
+                    ['2', 1, 1]
+                    ], dtype=object)
                 )
-        history._reset_history([1, 3, 3])
+        history._reset_history(['1', 3, 3])
 
         history._update_history(portfolio1)
 
         history._update_history(
-                portfolio2, [
-                    [1, 1, 1],
-                    [2, 1, 1],
-                    [2, 1, 1]
-                    ]
+                portfolio2, np.array([
+                    ['1', 1, 1],
+                    ['2', 1, 1],
+                    ['2', 1, 1]
+                    ], dtype=object)
                 )
 
         return history
@@ -210,7 +209,7 @@ class TestPairsTradingHistory(unittest.TestCase):
 
         history = self.fill_history_with_trades()
 
-        history._reset_history([1, 3, 3])
+        history._reset_history(['1', 3, 3])
 
         target = {
             '0': {

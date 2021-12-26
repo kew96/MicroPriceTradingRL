@@ -57,7 +57,6 @@ def first_price_reward(
 
 def portfolio_value_change(
         current_portfolio: PairsTradingPortfolio,
-        last_portfolio: PairsTradingPortfolio,
-        action: int
+        last_portfolio: PairsTradingPortfolio
         ):
-    return sum(current_portfolio) - sum(last_portfolio)
+    return current_portfolio.value() - last_portfolio.value()
