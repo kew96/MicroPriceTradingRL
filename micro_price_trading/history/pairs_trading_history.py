@@ -1,7 +1,6 @@
-from typing import List, Optional, Union
+from typing import Dict, Optional, Union
 
 import numpy as np
-import pandas as pd
 
 from .history import History, Allocation
 from micro_price_trading.dataclasses.portfolios.pairs_trading_portfolio import PairsTradingPortfolio
@@ -122,7 +121,7 @@ class PairsTradingHistory(History):
         return np.array(get_values(self.portfolio_history))
 
     @staticmethod
-    def _generate_readable_action_space(max_position):
+    def _generate_readable_action_space(max_position: int):
         """
         Creates a dictionary from integer actions to human readable positions
 
@@ -149,7 +148,7 @@ class PairsTradingHistory(History):
             self,
             portfolio: PairsTradingPortfolio,
             period_states: Optional[np.ndarray] = None
-            ):
+            ) -> None:
         """
         Helper method for updating all history tracking with single or multiple time steps as necessary
 
@@ -171,7 +170,7 @@ class PairsTradingHistory(History):
     def _collapse_state_trades(
             self,
             num_env_to_analyze: int = 1
-            ):
+            ) -> Dict[str, Dict[int, int]]:
         num_trades = dict()
 
         for portfolio_set in self.portfolio_history[-num_env_to_analyze:]:
@@ -183,6 +182,13 @@ class PairsTradingHistory(History):
                 num_trades[portfolio.res_imbalance_state] = state
 
         return num_trades
+
+    def _num_trades_in_period(
+            self,
+            period: int
+            ) -> int:
+        portfolios = self._portfolios[-1][-period:]
+        return len(list(filter(lambda portfolio: portfolio.trade, portfolios)))
 
     def _reset_history(self, start_state):
         self.current_portfolio = PairsTradingPortfolio(

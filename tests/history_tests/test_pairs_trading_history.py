@@ -128,7 +128,7 @@ class TestPairsTradingHistory(unittest.TestCase):
 
         self.assertEqual(self.history.portfolio_value_history.shape, (3, 5))
 
-    def test_collapse_state_trades(self):
+    def fill_history_with_trades(self):
         history = PairsTradingHistory(
                 start_state=np.array([0, 10, 20]),
                 start_cash=100,
@@ -139,13 +139,13 @@ class TestPairsTradingHistory(unittest.TestCase):
                 )
 
         history._update_history(
-            history.current_portfolio, [
+                history.current_portfolio, [
                     [1, 1, 1],
                     [0, 1, 1],
                     [1, 1, 1],
                     [2, 1, 1]
                     ]
-            )
+                )
         history._reset_history([0, 2, 2])
 
         trade1 = PairsTradingTrade(
@@ -187,22 +187,29 @@ class TestPairsTradingHistory(unittest.TestCase):
         history._update_history(portfolio2)
 
         history._update_history(
-            portfolio3, [
+                portfolio3, [
                     [2, 1, 1],
                     [2, 1, 1]
                     ]
-            )
+                )
         history._reset_history([1, 3, 3])
 
         history._update_history(portfolio1)
 
         history._update_history(
-            portfolio2, [
+                portfolio2, [
                     [1, 1, 1],
                     [2, 1, 1],
                     [2, 1, 1]
                     ]
-            )
+                )
+
+        return history
+
+    def test_collapse_state_trades(self):
+
+        history = self.fill_history_with_trades()
+
         history._reset_history([1, 3, 3])
 
         target = {
@@ -224,6 +231,15 @@ class TestPairsTradingHistory(unittest.TestCase):
             }
 
         self.assertEqual(history._collapse_state_trades(3), target)
+
+    def test_num_trades_in_period(self):
+        history = self.fill_history_with_trades()
+
+        target1 = history._num_trades_in_period(4)
+        target2 = history._num_trades_in_period(3)
+
+        self.assertEqual(target1, 1)
+        self.assertEqual(target2, 0)
 
 
 if __name__ == '__main__':
