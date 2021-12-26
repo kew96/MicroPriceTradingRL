@@ -240,6 +240,29 @@ class TestPairsTradingHistory(unittest.TestCase):
         self.assertEqual(target1, 1)
         self.assertEqual(target2, 0)
 
+    def test_long_short_indices(self):
+        history = self.fill_history_with_trades()
+
+        result = history.long_short_indices
+
+        target = [
+            [np.nan] * 5,
+            [0, 1, 2] + [np.nan] * 2,
+            [0, 1] + [np.nan] * 3
+            ]
+
+        np.testing.assert_array_equal(result, np.array(target))
+
+    def test_short_long_indices(self):
+        history = self.fill_history_with_trades()
+
+        result = history.short_long_indices
+
+        target = np.zeros((5, 3))
+        target[:] = np.nan
+
+        np.testing.assert_array_equal(result, np.array(target))
+
 
 if __name__ == '__main__':
     unittest.main()

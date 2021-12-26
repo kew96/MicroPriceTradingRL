@@ -115,6 +115,28 @@ class PairsTradingHistory(History):
         get_values = np.vectorize(get_value)
         return np.array(get_values(self.portfolio_history))
 
+    @property
+    def long_short_indices(self) -> np.ndarray:
+        def get_long_short(portfolio):
+            if portfolio.trade and portfolio.trade[0].shares > 0:
+                return portfolio.time
+            else:
+                return np.nan
+
+        get_long_short = np.vectorize(get_long_short)
+        return np.array(get_long_short(self.portfolio_history))
+
+    @property
+    def short_long_indices(self) -> np.ndarray:
+        def get_short_long(portfolio):
+            if portfolio.trade and portfolio.trade[0].shares < 0:
+                return portfolio.time
+            else:
+                return np.nan
+
+        get_short_long = np.vectorize(get_short_long)
+        return np.array(get_short_long(self.portfolio_history))
+
     @staticmethod
     def _generate_readable_action_space(max_position: int):
         """
