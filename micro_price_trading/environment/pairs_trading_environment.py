@@ -17,10 +17,6 @@ from micro_price_trading import PairsTradingBroker, TwoAssetSimulation
 from micro_price_trading.config import PAIRS_TRADING_FIGURES, TEN_SECOND_DAY
 
 
-def portfolio_value_change(current_portfolio, last_portfolio, action, last_state, current_state):
-    return sum(current_portfolio) - sum(last_portfolio)
-
-
 class PairsTradingEnvironment(TwoAssetSimulation, PairsTradingBroker, gym.Env):
     """
     The main pairs trading environment that conforms to OpenAI Gym's format. This handles all input and output actions/

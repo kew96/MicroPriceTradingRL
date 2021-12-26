@@ -1,6 +1,6 @@
 import numpy as np
 
-from micro_price_trading.dataclasses.portfolios import OptimalExecutionPortfolio
+from micro_price_trading.dataclasses.portfolios import *
 
 
 def first_price_cost_reward(
@@ -31,7 +31,11 @@ def first_price_cost_reward(
     return diff, 'actual'
 
 
-def first_price_reward(current_portfolio: OptimalExecutionPortfolio, prices_at_start: np.ndarray, target_risk: int):
+def first_price_reward(
+        current_portfolio: OptimalExecutionPortfolio,
+        prices_at_start: np.ndarray,
+        target_risk: int
+        ):
     diff = 0
 
     if current_portfolio.trade:
@@ -49,3 +53,11 @@ def first_price_reward(current_portfolio: OptimalExecutionPortfolio, prices_at_s
         return -abs(diff) * (current_portfolio.total_risk - target_risk), 'over risk penalty'
 
     return diff, 'actual'
+
+
+def portfolio_value_change(
+        current_portfolio: PairsTradingPortfolio,
+        last_portfolio: PairsTradingPortfolio,
+        action: int
+        ):
+    return sum(current_portfolio) - sum(last_portfolio)
