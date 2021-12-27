@@ -119,7 +119,7 @@ class PairsTradingHistory(History):
     def long_short_indices(self) -> np.ndarray:
         def get_long_short(portfolio):
             if portfolio.trade and portfolio.trade[0].shares > 0:
-                return portfolio.time
+                return np.float(portfolio.time)
             else:
                 return np.nan
 
@@ -130,7 +130,7 @@ class PairsTradingHistory(History):
     def short_long_indices(self) -> np.ndarray:
         def get_short_long(portfolio):
             if portfolio.trade and portfolio.trade[0].shares < 0:
-                return portfolio.time
+                return np.float(portfolio.time)
             else:
                 return np.nan
 

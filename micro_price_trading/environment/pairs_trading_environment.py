@@ -195,6 +195,10 @@ class PairsTradingEnvironment(
 
         if self.current_portfolio.value() <= self.threshold:
             self.terminal = True
+            self._update_history(
+                    self.current_portfolio,
+                    self.states[self.state_index+1:]
+                    )
 
         return (
             jnp.asarray(self.parse_state(self.current_state[0])),
@@ -225,7 +229,6 @@ class PairsTradingEnvironment(
                     portfolio=self.current_portfolio,
                     period_states=self.states[start:stop]
                     )
-            print(len(self._portfolios))
         else:
             self.state_index += 1
             self.current_state = self.states[self.state_index, :]
@@ -274,7 +277,7 @@ class PairsTradingEnvironment(
 
         PairsTradingHistory._reset_history(self, self.current_state)
 
-        return jnp.asarray([self.parse_state(self.current_state[0]), 0])
+        return jnp.asarray(self.parse_state(self.current_state[0]))
 
     def render(self, mode="human"):
         return None
@@ -331,17 +334,20 @@ class PairsTradingEnvironment(
             long_short_indices = self.long_short_indices[-plot_num]
             short_long_indices = self.short_long_indices[-plot_num]
 
+            cleaned_long_short_indices = long_short_indices[~np.isnan(long_short_indices)].astype(int)
+            cleaned_short_long_indices = short_long_indices[~np.isnan(short_long_indices)].astype(int)
+
             axs.scatter(
-                    long_short_indices,
-                    portfolio_values[long_short_indices],
+                    cleaned_long_short_indices,
+                    portfolio_values[cleaned_long_short_indices],
                     s=120,
                     c='g',
                     marker='^',
                     label='Long/Short'
                     )
             axs.scatter(
-                    short_long_indices,
-                    portfolio_values[short_long_indices],
+                    cleaned_short_long_indices,
+                    portfolio_values[cleaned_short_long_indices],
                     s=120,
                     c='r',
                     marker='v',
@@ -381,17 +387,20 @@ class PairsTradingEnvironment(
                 long_short_indices = self.long_short_indices[-plot_num]
                 short_long_indices = self.short_long_indices[-plot_num]
 
+                cleaned_long_short_indices = long_short_indices[~np.isnan(long_short_indices)].astype(int)
+                cleaned_short_long_indices = short_long_indices[~np.isnan(short_long_indices)].astype(int)
+
                 ax.scatter(
-                        long_short_indices,
-                        asset_paths[long_short_indices, idx],
+                        cleaned_long_short_indices,
+                        asset_paths[cleaned_long_short_indices, idx],
                         s=120,
                         c='g',
                         marker='^',
                         label='Long/Short'
                         )
                 ax.scatter(
-                        short_long_indices,
-                        asset_paths[short_long_indices, idx],
+                        cleaned_short_long_indices,
+                        asset_paths[cleaned_short_long_indices, idx],
                         s=120,
                         c='r',
                         marker='v',
