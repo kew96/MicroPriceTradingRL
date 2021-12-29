@@ -21,19 +21,21 @@ class TwoAssetSimulation(Simulation):
         idx = self._rng.randint(0, len(self.df))
         simu = [self.df.iloc[idx][['state', 'mid1', 'mid2']].values.tolist()]
         current = simu[0]
+        randoms = self._rng.rand(self.ite, 2)
 
         for i in range(self.ite):
+            rand1, rand2 = randoms[i]
             next_state = []
             x = self.prob[self.prob.index == current[0]]
             y = x.loc[:, (x != 0).any(axis=0)]
-            y = y.cumsum(axis=1)
             y_col = y.columns
-            y_val = np.array(y)
-            y_val = y_val[0]
-            rand = self._rng.rand()
-            j = 0
-            while y_val[j] < rand:
-                j += 1
+            if rand2 < self.randomness:
+                y = y.cumsum(axis=1)
+                y_val = np.array(y)
+                y_val = y_val[0]
+                j = np.argmax(y_val > rand1) - 1
+            else:
+                j = np.argmax(y)
             next_state.append(y_col[j][:3])
             asset1_ind = y_col[j][3]
             asset2_ind = y_col[j][4]

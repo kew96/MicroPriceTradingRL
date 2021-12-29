@@ -204,7 +204,7 @@ class Preprocess:
                 data['imb2_bin'].astype(str) +
                 data['mid1_diff_bin'].astype(str) +
                 data['mid2_diff_bin'].astype(str)
-        )
+                )
         data['state_later'] = data['state'].shift(-1)
 
         return data

@@ -12,9 +12,12 @@ class Simulation(ABC):
             self,
             data: Data,
             steps: int = 1_000,
+            randomness: float = 1.0,
             seed: Optional[int] = None
             ):
         self._rng = self._set_seed(seed)
+
+        self.randomness = randomness
 
         self.df = data.data
         self.prob = data.transition_matrix

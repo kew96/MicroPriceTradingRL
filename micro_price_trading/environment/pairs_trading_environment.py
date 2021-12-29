@@ -43,6 +43,8 @@ class PairsTradingEnvironment(
         hard_stop_penalty: The penalty induced if we must stop early
         current_portfolio: The current PairsTradingPortfolio
         readable_action_space: The human readable format of the actions
+        randomness: The amount of randomness in the simulation. 0 implies deterministic simulation while 1 implies
+            completely random simulation
         amounts: The dollar ratios to buy each asset in
         fixed_buy_cost: The fixed dollar amount to be charged for every `buy` order
         fixed_sell_cost: The fixed dollar amount to be charged for every `sell` order
@@ -99,6 +101,7 @@ class PairsTradingEnvironment(
             reward_func: Callable = portfolio_value_change,
             start_allocation: Allocation = (500, -1000),
             max_position: int = 10,
+            randomness: float = 1.0,
             steps: int = TEN_SECOND_DAY,
             seed: Optional[int] = None
             ):
@@ -106,7 +109,8 @@ class PairsTradingEnvironment(
                 self,
                 data=data,
                 steps=steps,
-                seed=seed
+                seed=seed,
+                randomness=randomness
                 )
         self.state_index = 0
         self.terminal = False
@@ -176,20 +180,19 @@ class PairsTradingEnvironment(
 
         """
 
+        old_portfolio = self.current_portfolio
         action -= self.max_position
 
         if self.current_portfolio.position != action:
             self._traded = True
             self.current_portfolio = self.trade(
-                    target_position=action,
+                    target_position=action if type(action) == int else action.item(),
                     current_portfolio=self.current_portfolio
                     )
 
         self.logical_update()
 
         self.terminal = self.state_index >= len(self.states) - 1
-
-        old_portfolio = self.current_portfolio
 
         reward = self.get_reward(old_portfolio)
 
@@ -324,6 +327,8 @@ class PairsTradingEnvironment(
             fig, axs = plt.subplots(figsize=(15, 10))
 
             portfolio_values = self.portfolio_value_history[-plot_num]
+            delta = portfolio_values[0]
+            portfolio_values -= delta
 
             axs.plot(
                     portfolio_values, label='Total',
@@ -435,7 +440,7 @@ class PairsTradingEnvironment(
                     bottom = cumulative_frequencies[idx-1]
 
                 ax.bar(
-                        range(len(row)),
+                        res_imb_states,
                         row,
                         label=self.readable_action_space[idx],
                         bottom=bottom

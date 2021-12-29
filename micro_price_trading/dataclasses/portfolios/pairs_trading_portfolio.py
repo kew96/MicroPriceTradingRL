@@ -18,13 +18,13 @@ class PairsTradingPortfolio(Portfolio):
                 sum(
                         map(lambda pairs: pairs[0] * pairs[1], zip(self.shares, execution_prices))
                         )
-        )
+            )
 
     def copy_portfolio(self, new_state, new_prices, forced_action=False):
         new_portfolio = PairsTradingPortfolio(**self.__dict__)
         new_portfolio.time += 1
         new_portfolio.res_imbalance_state = new_state
-        new_portfolio.mid_prices = new_prices
+        new_portfolio.mid_prices = tuple(new_prices)
         new_portfolio.trade = None
         new_portfolio.forced_action = forced_action
         return new_portfolio
@@ -38,7 +38,7 @@ class PairsTradingPortfolio(Portfolio):
 
             new_portfolio.trade = tuple(trades)
 
-            new_portfolio.time = self.time
+            new_portfolio.time -= 1
 
             new_portfolio.cash -= other.total_cost
 

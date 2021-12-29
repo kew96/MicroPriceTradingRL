@@ -53,14 +53,14 @@ class PairsTradingHistory(History):
                 )
 
         if start_allocation is None:
-            start_allocation = [1000, -500]
+            start_allocation = (500, -1000)
 
-        self._expected_entries = max_steps + 1
+        self._expected_entries = max_steps
 
         self.current_portfolio = PairsTradingPortfolio(
                 time=0,
                 cash=start_cash,
-                shares=start_allocation,
+                shares=(start_allocation[0]/start_state[1], start_allocation[1]/start_state[2]),
                 mid_prices=tuple(start_state[1:]),
                 res_imbalance_state=start_state[0],
                 )
@@ -224,7 +224,7 @@ class PairsTradingHistory(History):
         self.current_portfolio = PairsTradingPortfolio(
                 time=0,
                 cash=self._start_cash,
-                shares=self._start_allocation,
+                shares=(self._start_allocation[0]/start_state[1], self._start_allocation[1]/start_state[2]),
                 mid_prices=tuple(start_state[1:]),
                 res_imbalance_state=start_state[0],
                 )
