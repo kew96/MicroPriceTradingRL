@@ -1,17 +1,24 @@
+from typing import Optional
+
 import pandas as pd
 import numpy as np
 
-from .simulation import Simulation
+from micro_price_trading.simulating.simulation import Simulation
+from micro_price_trading.preprocessing import Data
 
 
 class TwoAssetSimulation(Simulation):
 
-    def __init__(
-            self,
-            *args,
-            **kwargs
-            ):
-        Simulation.__init__(self, *args, **kwargs)
+    def __init__(self,
+                 data: Data,
+                 steps: int = 1_000,
+                 randomness: float = 1.0,
+                 seed: Optional[int] = None):
+        Simulation.__init__(self,
+                            data=data,
+                            steps=steps,
+                            randomness=randomness,
+                            seed=seed)
 
     def _simulate(self, tick=0.01):
         """
@@ -62,5 +69,4 @@ class TwoAssetSimulation(Simulation):
         return simu.values
 
     def _reset_simulation(self):
-        self._last_states = self.states.copy()
-        self.states = self._simulate()
+        super(TwoAssetSimulation, self)._reset_simulation()

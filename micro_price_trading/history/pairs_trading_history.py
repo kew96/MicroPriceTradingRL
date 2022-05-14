@@ -161,12 +161,10 @@ class PairsTradingHistory(History):
                 actions[key] = 'Flat'
         return actions
 
-    def _update_history(
-            self,
-            portfolio: PairsTradingPortfolio,
-            period_states: Optional[np.ndarray] = None,
-            forced_actions=True
-            ) -> None:
+    def update_history(self,
+                       portfolio: PairsTradingPortfolio,
+                       period_states: Optional[np.ndarray] = None,
+                       forced_actions=True) -> PairsTradingPortfolio:
         """
         Helper method for updating all history tracking with single or multiple time steps as necessary
 
@@ -178,20 +176,17 @@ class PairsTradingHistory(History):
                 all cases will require this to be `True`
         """
         portfolios = [portfolio]
-        if period_states is not None:
-            for state in period_states:
-                portfolio = portfolio.copy_portfolio(
-                        state[0],
-                        tuple(state[1:]),
-                        forced_action=forced_actions
-                        )
+        if period_states is not None and len(period_states) > 1:
+            for state in period_states[1:]:
+                portfolio = portfolio.copy_portfolio(state[0],
+                                                     tuple(state[1:]),
+                                                     forced_action=forced_actions)
                 portfolios.append(portfolio)
         self._portfolios[-1].extend(portfolios)
+        return self._portfolios[-1][-1]
 
-    def _collapse_state_trades(
-            self,
-            num_env_to_analyze: int = 1
-            ) -> Dict[str, Dict[int, int]]:
+    def _collapse_state_trades(self,
+                               num_env_to_analyze: int = 1) -> Dict[str, Dict[int, int]]:
         """
         Collapse the last `num_env_to_analyze` portfolios
         Args:

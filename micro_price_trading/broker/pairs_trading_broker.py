@@ -32,16 +32,14 @@ class PairsTradingBroker(Broker):
         trade
     """
 
-    def __init__(
-            self,
-            amounts: Tuple[int, int] = (500, -1000),
-            fixed_buy_cost: float = 0.0,
-            fixed_sell_cost: float = 0.0,
-            variable_buy_cost: float = 0.0,
-            variable_sell_cost: float = 0.0,
-            spread: Union[float, int] = 0,
-            max_position: int = 10
-            ):
+    def __init__(self,
+                 amounts: Tuple[int, int] = (500, -1000),
+                 fixed_buy_cost: float = 0.0,
+                 fixed_sell_cost: float = 0.0,
+                 variable_buy_cost: float = 0.0,
+                 variable_sell_cost: float = 0.0,
+                 spread: Union[float, int] = 0,
+                 max_position: int = 10):
         """
 
         Args:
@@ -68,16 +66,14 @@ class PairsTradingBroker(Broker):
         self.slippage = spread / 2
 
         # No trade period
-        self._traded = False
+        self.traded = False
 
         # Maximum position
         self.max_position = max_position
 
-    def trade(
-            self,
-            target_position: int,
-            current_portfolio: PairsTradingPortfolio,
-            ):
+    def trade(self,
+              target_position: int,
+              current_portfolio: PairsTradingPortfolio):
         """
         The main function for trading. Takes in the required information and returns the new positions and dollar
         amounts after executing the desired trades
@@ -89,6 +85,7 @@ class PairsTradingBroker(Broker):
         Returns: The current portfolio modified with the necessary trades
 
         """
+        self.traded = True
         action = target_position - current_portfolio.position
 
         shares_prices = self._get_shares_prices(current_portfolio, action)
@@ -105,14 +102,12 @@ class PairsTradingBroker(Broker):
                 mid_price=current_portfolio.mid_prices[0]
                 )
 
-        asset2_trade = PairsTradingTrade(
-                asset=2,
-                shares=shares_prices[1][0],
-                execution_price=shares_prices[1][1],
-                total_cost=asset2_cost,
-                buy_sell=BuySell.Buy if asset2_cost > 0 else BuySell.Sell,
-                mid_price=current_portfolio.mid_prices[1]
-                )
+        asset2_trade = PairsTradingTrade(asset=2,
+                                         shares=shares_prices[1][0],
+                                         execution_price=shares_prices[1][1],
+                                         total_cost=asset2_cost,
+                                         buy_sell=BuySell.Buy if asset2_cost > 0 else BuySell.Sell,
+                                         mid_price=current_portfolio.mid_prices[1])
         new_portfolio = current_portfolio + asset1_trade + asset2_trade
         new_portfolio.position = target_position
 
@@ -139,7 +134,7 @@ class PairsTradingBroker(Broker):
 
         return total_cost
 
-    def _get_shares_prices(self, portfolio, action):
+    def _get_shares_prices(self, portfolio: PairsTradingPortfolio, action: int):
         """
         Calculates the number of shares and the price at which to trade given the multiplier and portfolio
 
@@ -152,10 +147,8 @@ class PairsTradingBroker(Broker):
                 which to trade
 
         """
-        prices = (
-            self._get_trade_price(portfolio.mid_prices[0], action > 0),
-            self._get_trade_price(portfolio.mid_prices[1], action < 0)
-            )
+        prices = (self._get_trade_price(portfolio.mid_prices[0], action > portfolio.position),
+                  self._get_trade_price(portfolio.mid_prices[1], action > portfolio.position))
 
         dollars = (action * self.amounts[0], action * self.amounts[1])
 

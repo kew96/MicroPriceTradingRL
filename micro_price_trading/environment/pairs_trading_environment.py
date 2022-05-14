@@ -9,22 +9,20 @@ import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
+from micro_price_trading.environment.helpers.pairs_trading_helper import PairsTradingHelper
 from micro_price_trading.history.history import Allocation
 from micro_price_trading.preprocessing.preprocess import Data
 
 from micro_price_trading import PairsTradingHistory, PairsTradingBroker, TwoAssetSimulation
+from micro_price_trading.simulating.simulation import Simulation
+from micro_price_trading.history.history import History
 
 from micro_price_trading.reward_functions import portfolio_value_change
 
 from micro_price_trading.config import PAIRS_TRADING_FIGURES, TEN_SECOND_DAY, ArrayLike
 
 
-class PairsTradingEnvironment(
-        TwoAssetSimulation,
-        PairsTradingHistory,
-        PairsTradingBroker,
-        gym.Env
-        ):
+class PairsTradingEnvironment(gym.Env, PairsTradingHelper):
     """
     The main pairs trading environment that conforms to OpenAI Gym's format. This handles all input and output actions/
     spaces along with resetting the required parameters.
@@ -82,92 +80,50 @@ class PairsTradingEnvironment(
 
     # 1 TODO: Add inventory to state space
     # 2 TODO: stable_baselines3
+    
+    def __init__(self,
+                 simulation: Simulation,
+                 broker: PairsTradingBroker,
+                 history: PairsTradingHistory,
+                 no_trade_period: int = 0,
+                 min_trades: int = 1,
+                 lookback: int = -1,
+                 no_trade_penalty: Union[float, int] = 0,
+                 threshold: int = -np.inf,
+                 hard_stop_penalty: int = 0,
+                 reward_func: Callable = portfolio_value_change):
 
-    def __init__(
-            self,
-            data: Data,
-            no_trade_period: int = 0,
-            spread: int = 0,
-            fixed_buy_cost: float = 0,
-            fixed_sell_cost: float = 0,
-            variable_buy_cost: float = 0.0,
-            variable_sell_cost: float = 0.0,
-            min_trades: int = 1,
-            lookback: int = -1,
-            no_trade_penalty: Union[float, int] = 0,
-            threshold: int = -np.inf,
-            start_cash: float = 100,
-            hard_stop_penalty: int = 0,
-            reward_func: Callable = portfolio_value_change,
-            start_allocation: Allocation = (500, -1000),
-            max_position: int = 10,
-            randomness: float = 1.0,
-            steps: int = TEN_SECOND_DAY,
-            seed: Optional[int] = None
-            ):
-        TwoAssetSimulation.__init__(
-                self,
-                data=data,
-                steps=steps,
-                seed=seed,
-                randomness=randomness
-                )
-        self.state_index = 0
-        self.terminal = False
-
-        self.no_trade_period = no_trade_period
-
-        PairsTradingBroker.__init__(
-                self,
-                amounts=start_allocation,
-                fixed_buy_cost=fixed_buy_cost,
-                fixed_sell_cost=fixed_sell_cost,
-                variable_buy_cost=variable_buy_cost,
-                variable_sell_cost=variable_sell_cost,
-                spread=spread,
-                max_position=max_position
-                )
+        PairsTradingHelper.__init__(self,
+                                    simulation,
+                                    broker,
+                                    history,
+                                    no_trade_period,
+                                    min_trades,
+                                    lookback,
+                                    no_trade_penalty,
+                                    threshold,
+                                    hard_stop_penalty,
+                                    reward_func)
 
         # RL/OpenAI Gym requirements
-        self.reward_func = reward_func
 
         self.observation_space = MultiDiscrete(
                 [
-                    self._res_bins,  # Set of residual states
-                    self._imb1_bins,  # Set of imbalance 1 states
-                    self._imb2_bins,  # Set of imbalance 2 states
+                    simulation.res_bins,  # Set of residual states
+                    simulation.imb1_bins,  # Set of imbalance 1 states
+                    simulation.imb2_bins,  # Set of imbalance 2 states
                     # self.states.iloc[:, 1].max()*2*100,  # 1 cent increments from 0, ..., 2*max value
                     # self.states.iloc[:, 2].max()*2*100,  # 1 cent increments from 0, ..., 2*max value,
                     # self.ite,  # Number of trading periods in run,
                     # self.max_position*2+1  # Current position
                     ]
                 )
-        self.action_space = Discrete(max_position * 2 + 1)
+        self.action_space = Discrete(broker.max_position * 2 + 1)
 
         self._max_episode_steps = 10_000
 
-        self.no_trade_penalty = no_trade_penalty
-        self.min_trades = min_trades
-        self.lookback = lookback
-        assert lookback < 0 or lookback > self.no_trade_period, \
-            f'lookback={lookback}, no_trade_period={self.no_trade_period}'
-
-        self.threshold = threshold
-        self.hard_stop_penalty = hard_stop_penalty
-
-        PairsTradingHistory.__init__(
-                self,
-                start_state=self.current_state,
-                start_cash=start_cash,
-                max_steps=steps,
-                start_allocation=start_allocation,
-                max_position=max_position
-                )
-
-    def step(
-            self,
-            action: ArrayLike
-            ):
+    def step(self,
+             action: ArrayLike):
         """
         The step function as outlined by OpenAI Gym. Used to take an action and return the necessary information for
         an RL agent to learn.
@@ -181,11 +137,11 @@ class PairsTradingEnvironment(
         """
 
         old_portfolio = self.current_portfolio
-        action -= self.max_position
+        action -= self.broker.max_position
 
         if self.current_portfolio.position != action:
-            self._traded = True
-            self.current_portfolio = self.trade(
+            self.broker.traded = True
+            self.history.current_portfolio = self.broker.trade(
                     target_position=action if type(action) == int else action.item(),
                     current_portfolio=self.current_portfolio
                     )
@@ -285,12 +241,10 @@ class PairsTradingEnvironment(
     def render(self, mode="human"):
         return None
 
-    def plot(
-            self,
-            data='portfolio_history',
-            plot_num=1,
-            state=None
-            ):
+    def plot(self,
+             data='portfolio_history',
+             plot_num=1,
+             state=None):
         """
         The general function for plotting and visualizing the data. Options include the following:
             `portfolio_history`

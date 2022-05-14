@@ -11,15 +11,13 @@ class TestPairsTradingBroker(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.broker = PairsTradingBroker(
-                amounts=[500, -1000],
-                fixed_buy_cost=0.3,
-                fixed_sell_cost=0.2,
-                variable_buy_cost=0.5,
-                variable_sell_cost=0.1,
-                spread=0.01,
-                max_position=2
-                )
+        cls.broker = PairsTradingBroker(amounts=[500, -1000],
+                                        fixed_buy_cost=0.3,
+                                        fixed_sell_cost=0.2,
+                                        variable_buy_cost=0.5,
+                                        variable_sell_cost=0.1,
+                                        spread=0.01,
+                                        max_position=2)
 
     def test_slippage(self):
         self.assertAlmostEqual(self.broker.slippage, 0.005)
