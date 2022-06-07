@@ -15,19 +15,19 @@ from matplotlib.legend_handler import HandlerTuple
 from micro_price_trading.reward_functions import first_price_reward
 from micro_price_trading.history.history import Allocation
 from micro_price_trading.preprocessing.preprocess import Data
-from micro_price_trading.history.optimal_execution_history import Portfolio
+from micro_price_trading.dataclasses.portfolios import OptimalExecutionPortfolio
 from micro_price_trading import TwoAssetSimulation, OptimalExecutionBroker, OptimalExecutionHistory
 
 from micro_price_trading.config import OPTIMAL_EXECUTION_FIGURES, TWENTY_SECOND_DAY
 
 
 class OptimalExecutionEnvironment(
-    TwoAssetSimulation,
-    OptimalExecutionBroker,
-    OptimalExecutionHistory,
-    gym.Env,
-    ABC
-):
+        TwoAssetSimulation,
+        OptimalExecutionBroker,
+        OptimalExecutionHistory,
+        gym.Env,
+        ABC
+        ):
 
     def __init__(
             self,
@@ -41,24 +41,24 @@ class OptimalExecutionEnvironment(
             end_units_risk: int = 100,
             must_trade_interval: int = 10,
             seed: Optional[int] = None,
-    ):
+            ):
         if start_allocation is None:
             self._start_allocation = (0, 0)
         else:
             self._start_allocation = start_allocation
 
         TwoAssetSimulation.__init__(
-            self,
-            data=data,
-            steps=steps,
-            seed=seed
-        )
+                self,
+                data=data,
+                steps=steps,
+                seed=seed
+                )
 
         OptimalExecutionBroker.__init__(
-            self,
-            risk_weights=risk_weights,
-            trade_penalty=trade_penalty
-        )
+                self,
+                risk_weights=risk_weights,
+                trade_penalty=trade_penalty
+                )
 
         self.state_index = 0
         self.terminal = False
@@ -89,11 +89,13 @@ class OptimalExecutionEnvironment(
         # Next risk target for the end of the current period
         self._next_target_risk = list(self._period_risk.values())[0]
 
-        self.observation_space = MultiDiscrete([
-            len(self.mapping),  # Set of residual imbalance states
-            # self.must_trade_interval,  # Number of steps left till end of must_trade_period
-            self._next_target_risk,  # Number of units of risk left to purchase
-        ])
+        self.observation_space = MultiDiscrete(
+                [
+                    len(self.mapping),  # Set of residual imbalance states
+                    # self.must_trade_interval,  # Number of steps left till end of must_trade_period
+                    self._next_target_risk,  # Number of units of risk left to purchase
+                    ]
+                )
 
         # TODO self.action_space = MultiDiscrete([self.units_of_risk, self.units_of_risk/2])
         # Switched from end_units_risk to max_purchase. I thought that end_units_risk might have given too large of
@@ -104,15 +106,15 @@ class OptimalExecutionEnvironment(
         self.prices_at_start = self.current_state[1:]
 
         OptimalExecutionHistory.__init__(
-            self,
-            max_actions=self.action_space.n,
-            max_steps=self.steps,
-            start_state=self.current_state,
-            start_cash=0,
-            start_allocation=start_allocation,
-            start_risk=0,
-            reverse_mapping=self._reverse_mapping
-        )
+                self,
+                max_actions=self.action_space.n,
+                max_steps=self.steps,
+                start_state=self.current_state,
+                start_cash=0,
+                start_allocation=start_allocation,
+                start_risk=0,
+                reverse_mapping=self._reverse_mapping
+                )
 
     def step(self, action: Union[List, int]):
         """
@@ -134,16 +136,16 @@ class OptimalExecutionEnvironment(
         if action:
             if action == 1:  # we want to buy asset 1
                 trade = self.trade(
-                    action=-int(self.risk_per_interval/2),  # buy 1 share of asset 1
-                    current_state=self.current_state,
-                    penalty_trade=False
-                )
+                        action=-int(self.risk_per_interval / 2),  # buy 1 share of asset 1
+                        current_state=self.current_state,
+                        penalty_trade=False
+                        )
             else:  # we want to buy asset 2
                 trade = self.trade(
-                    action=self.risk_per_interval,  # buy two shares of asset 2
-                    current_state=self.current_state,
-                    penalty_trade=False
-                )
+                        action=self.risk_per_interval,  # buy two shares of asset 2
+                        current_state=self.current_state,
+                        penalty_trade=False
+                        )
 
             total_risk += trade.risk  # Remove the risk we just bought
         else:
@@ -153,10 +155,10 @@ class OptimalExecutionEnvironment(
 
             if total_risk < self._next_target_risk:
                 penalty_trade = self.trade(
-                    action=self._get_penalty_action(total_risk, self._next_target_risk),
-                    current_state=self.current_state,
-                    penalty_trade=True
-                )
+                        action=self._get_penalty_action(total_risk, self._next_target_risk),
+                        current_state=self.current_state,
+                        penalty_trade=True
+                        )
             else:
                 penalty_trade = None
 
@@ -175,12 +177,13 @@ class OptimalExecutionEnvironment(
                 for _ in range(self.must_trade_interval - self.state_index % self.must_trade_interval - 1):
                     if self.state_index >= self.steps - 2:
                         break
-                    self._update_debugging(0,
-                                           (0, 'forced no trade'),
-                                           [self.current_state[0],
-                                            self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
-                                            self._next_target_risk-self.current_portfolio.total_risk]
-                                           )
+                    self._update_debugging(
+                            0,
+                            (0, 'forced no trade'),
+                            [self.current_state[0],
+                             self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
+                             self._next_target_risk - self.current_portfolio.total_risk]
+                            )
                     self.logical_update(None, None)
 
         self.terminal = self.state_index >= self.steps
@@ -190,7 +193,7 @@ class OptimalExecutionEnvironment(
                        # this value can go. This seemed to solve an error I was throwing before but could be explored
                        # self.must_trade_interval - self.state_index % self.must_trade_interval - 1,
                        # Again, this has a minimum of 0 now and allows us to guarantee the size of the observation space
-                       max(self._next_target_risk-self.current_portfolio.total_risk, 0)]
+                       max(self._next_target_risk - self.current_portfolio.total_risk, 0)]
 
         self._update_debugging(raw_action, reward, observation)
 
@@ -199,7 +202,7 @@ class OptimalExecutionEnvironment(
             reward[0],
             self.terminal,
             {}
-        )
+            )
 
     def logical_update(self, trade=None, penalty_trade=None, update_target=False):
         """
@@ -230,10 +233,10 @@ class OptimalExecutionEnvironment(
 
         """
         return self.reward_func(
-            self.current_portfolio,
-            self.prices_at_start,
-            self._next_target_risk
-        )
+                self.current_portfolio,
+                self.prices_at_start,
+                self._next_target_risk
+                )
 
     def _calculate_period_risk_targets(self):
         """
@@ -290,30 +293,31 @@ class OptimalExecutionEnvironment(
         new_risk = self.current_portfolio.total_risk
 
         if trade:
-            new_cash -= trade.cost
+            new_cash -= trade.total_cost
             new_risk += trade.risk
             if trade.asset == 1:
                 new_shares = new_shares[0] + trade.shares, new_shares[1]
             else:
                 new_shares = new_shares[0], new_shares[1] + trade.shares
         if penalty_trade:
-            new_cash -= penalty_trade.cost
+            new_cash -= penalty_trade.total_cost
             new_risk += penalty_trade.risk
             if penalty_trade.asset == 1:
                 new_shares = new_shares[0] + penalty_trade.shares, new_shares[1]
             else:
                 new_shares = new_shares[0], new_shares[1] + penalty_trade.shares
 
-        new_portfolio = Portfolio(
-            self.state_index,
-            cash=new_cash,
-            shares=new_shares,
-            prices=tuple(self.current_state[1:]),
-            total_risk=new_risk,
-            res_imbalance_state=self._reverse_mapping[self.current_state[0]],  # TODO: Wrong current state? 47 res bins
-            trade=trade,
-            penalty_trade=penalty_trade
-        )
+        new_portfolio = OptimalExecutionPortfolio(
+                self.state_index,
+                cash=new_cash,
+                shares=new_shares,
+                mid_prices=tuple(self.current_state[1:]),
+                total_risk=new_risk,
+                res_imbalance_state=self._reverse_mapping[self.current_state[0]],
+                # TODO: Wrong current state? 47 res bins
+                trade=trade,
+                penalty_trade=penalty_trade
+                )
 
         return new_portfolio
 
@@ -333,15 +337,17 @@ class OptimalExecutionEnvironment(
         OptimalExecutionBroker._reset_broker(self)
         OptimalExecutionHistory._reset_history(self, self.current_state)
 
-        return jnp.asarray([self.current_state[0],
-                            # 4,
-                            self._next_target_risk])
+        return jnp.asarray(
+                [self.current_state[0],
+                 # 4,
+                 self._next_target_risk]
+                )
 
     def plot(
             self,
             data='share_history',
             num_paths=1
-    ):
+            ):
         """
         The general function for plotting and visualizing the data. Options include the following:
             `share_history`
@@ -360,7 +366,7 @@ class OptimalExecutionEnvironment(
             'extensive_risk_history',
             'asset_paths',
             'analyze_rewards'
-        ]
+            ]
 
         if data == 'help':
             print(options)
@@ -396,12 +402,12 @@ class OptimalExecutionEnvironment(
             labels.append('Target Shares')
 
             fig.legend(
-                handles=handles,
-                labels=labels,
-                ncol=1,
-                handler_map={list: HandlerTuple(None)},
-                fontsize=14
-            )
+                    handles=handles,
+                    labels=labels,
+                    ncol=1,
+                    handler_map={list: HandlerTuple(None)},
+                    fontsize=14
+                    )
             fig.suptitle('Share History', fontsize=14)
 
             fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('share_history.png'), format='png')
@@ -426,12 +432,12 @@ class OptimalExecutionEnvironment(
             labels.append('Target Risk')
 
             fig.legend(
-                handles=handles,
-                labels=labels,
-                ncol=1,
-                handler_map={list: HandlerTuple(None)},
-                fontsize=14
-            )
+                    handles=handles,
+                    labels=labels,
+                    ncol=1,
+                    handler_map={list: HandlerTuple(None)},
+                    fontsize=14
+                    )
             fig.suptitle('Risk History', fontsize=14)
 
             fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('risk_history.png'), format='png')
@@ -446,8 +452,10 @@ class OptimalExecutionEnvironment(
             ax.plot(df.time, asset_2_total_cost, label='total cost in asset 2')
             ax.plot(df.time, asset_1_total_cost + asset_2_total_cost, label='total cost')
 
-            ax.hlines(2340 - np.array(list(self._period_risk.values())),
-                      xmin=0, xmax=self.steps, colors='lime', linewidth=2)
+            ax.hlines(
+                    2340 - np.array(list(self._period_risk.values())),
+                    xmin=0, xmax=self.steps, colors='lime', linewidth=2
+                    )
 
             ax.legend()
 
@@ -462,15 +470,15 @@ class OptimalExecutionEnvironment(
             axs[0].plot(paths[:, 0], c='k', alpha=0.7)
             axs[0].scatter(np.argwhere(trades[:, 0]), paths[trades[:, 0], 0], c='g', label='Buy Asset 1')
             axs[0].scatter(
-                np.argwhere(forced_trades[:, 0]), paths[forced_trades[:, 0], 0], c='r', label='Forced Buy Asset 1'
-            )
+                    np.argwhere(forced_trades[:, 0]), paths[forced_trades[:, 0], 0], c='r', label='Forced Buy Asset 1'
+                    )
             axs[0].set_title('Asset 1')
 
             axs[1].plot(paths[:, 1], c='k', alpha=0.7)
             axs[1].scatter(np.argwhere(trades[:, 1]), paths[trades[:, 1], 1], c='g', label='Buy Asset 2')
             axs[1].scatter(
-                np.argwhere(forced_trades[:, 1]), paths[forced_trades[:, 1], 1], c='r', label='Forced Buy Asset 2'
-            )
+                    np.argwhere(forced_trades[:, 1]), paths[forced_trades[:, 1], 1], c='r', label='Forced Buy Asset 2'
+                    )
             axs[1].set_title('Asset 2')
 
             axs[0].legend(fontsize=14)
@@ -492,15 +500,12 @@ class OptimalExecutionEnvironment(
                 elif i[1] == 'under risk penalty':
                     penalty_trade_rewards += [i[0]]
 
-            axs[0].hist(trade_rewards, bins= 10)
+            axs[0].hist(trade_rewards, bins=10)
             # axs[0].title('Distribution of Rewards for Trades')
-            axs[1].hist(penalty_trade_rewards, bins = 10)
+            axs[1].hist(penalty_trade_rewards, bins=10)
             # axs[1].title('Distribution of Rewards for Trades')
 
             fig.savefig(OPTIMAL_EXECUTION_FIGURES.joinpath('analyze_rewards.png'), format='png')
-
-
-
 
         elif data == 'state_frequency':
             """

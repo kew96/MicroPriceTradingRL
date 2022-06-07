@@ -147,4 +147,4 @@ dependencies:
     - toolz==0.11.1
     - tqdm==4.48.2
     - urllib3==1.26.6
-prefix: /home/kylewalsh/miniconda3/envs/Citi
+prefix: $HOME/miniconda3/envs/MicroPriceTradingRL

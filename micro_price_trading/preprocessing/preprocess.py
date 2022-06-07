@@ -33,7 +33,7 @@ class Preprocess:
             quantile: bool = False,
             tick_shift: int = 1,
             file_prefix: Optional[str] = None
-    ):
+            ):
         self.__data_file = data
         self.__data = pd.read_csv(DATA_PATH.joinpath(data))
         self.__transition_matrix = None
@@ -58,112 +58,88 @@ class Preprocess:
     def _process_data(self, out_of_sample=None):
         self.__data = self._preprocess(self.__data)
 
-        X = sm.add_constant(self.__data['logmid2'])
-        res = sm.OLS(self.__data['logmid1'], X).fit()
+        X = sm.add_constant(self.__data.mid2)
+        res = sm.OLS(self.__data.mid1, X).fit()
         constant = res.params[0]
         slope = res.params[1]
 
-        predicted_y = constant + slope * self.__data['logmid2']
-        self.__data['residuals'] = self.__data['logmid1'] - predicted_y
+        predicted_y = constant + slope * self.__data.mid1
+        self.__data['residuals'] = self.__data.mid1 - predicted_y
 
         # forward PnL from residual
-        self.__data = self._set_forward_pnl(self.__data)
+        self.__data = self._set_and_get_forward_pnl_imbalances(self.__data)
 
-        # calculate imb1 and imb2
-        self.__data = self._get_imbalances(self.__data)
-
-        # classify the mid_diff
-        self.__data = self._classify_mid_diff(self.__data)
-
-        # binning residual, imb1, imb2
-        if self.__quantile:
-            self.__data = self._quantile_bin(self.__data)
-        else:
-            self.__data = self._uniform_bin(self.__data)
-
-        self.__data = self._build_states(self.__data)
+        # bucket the imbalances
+        self.__data = self._bucket(self.__data)
 
         # dropna due to shift
         self.__data = self.__data.dropna()
-        self.__data['state'] = self.__data.state.str[:3]
 
         if out_of_sample is not None:
             out_of_sample = out_of_sample.copy()
             out_of_sample = self._preprocess(out_of_sample)
 
-            predicted_y = constant + slope * out_of_sample['logmid2']
-            out_of_sample['residuals'] = out_of_sample['logmid1'] - predicted_y
+            predicted_y = constant + slope * out_of_sample.mid1
+            out_of_sample['residuals'] = out_of_sample.mid1 - predicted_y
 
-            out_of_sample = self._set_forward_pnl(out_of_sample)
+            out_of_sample = self._set_and_get_forward_pnl_imbalances(out_of_sample)
 
-            out_of_sample = self._get_imbalances(out_of_sample)
-
-            out_of_sample = self._classify_mid_diff(out_of_sample)
-
-            if self.__quantile:
-                out_of_sample = self._quantile_bin(out_of_sample)
-            else:
-                out_of_sample = self._uniform_bin(out_of_sample)
+            out_of_sample = self._bucket(out_of_sample)
 
             out_of_sample = self._build_states(out_of_sample)
 
             # dropna due to shift
             out_of_sample = out_of_sample.dropna()
-            out_of_sample['state'] = out_of_sample.state.str[:3]
 
             return out_of_sample
 
-    def _set_forward_pnl(self, data):
-        data = data.copy()
-        data['forward_pnl'] = data['residuals'].shift(-self.__tick_shift) - data['residuals']
-        data['mid1_diff'] = data['mid1'].shift(-self.__tick_shift) - data['mid1']
-        data['mid2_diff'] = data['mid2'].shift(-self.__tick_shift) - data['mid2']
-
-        return data
-
-    def _quantile_bin(self, data):
+    def _set_and_get_forward_pnl_imbalances(self, data):
         data = data.copy()
 
-        res_retbin = pd.qcut(data['residuals'], self.__res_bin, labels=False, retbins=True)[-1]
-        res_retbin[0] = -np.Inf
-        res_retbin[-1] = np.Inf
-        imb1_retbin = pd.qcut(data['imb1'], self.__imb1_bin, labels=False, retbins=True)[-1]
-        imb1_retbin[0] = -np.Inf
-        imb1_retbin[-1] = np.Inf
-        imb2_retbin = pd.qcut(data['imb2'], self.__imb2_bin, labels=False, retbins=True)[-1]
-        imb2_retbin[0] = -np.Inf
-        imb2_retbin[-1] = np.Inf
+        data.columns = ['time', 'ask1', 'ask_size1', 'bid1', 'bid_size1', 'ask2', 'ask_size2', 'bid2', 'bid_size2',
+                           'mid1', 'mid2', 'residuals']
+        data[['ask1', 'bid1', 'ask2', 'bid2', 'residuals']] = -data[['ask1', 'bid1', 'ask2', 'bid2', 'residuals']]
 
-        self.res_retbin = res_retbin
-        self.imb1_retbin = imb1_retbin
-        self.imb2_retbin = imb2_retbin
+        change1 = self.__data.bid1[len(self.__data) - 1] - data.bid1[0] - 0.01
+        change2 = self.__data.bid2[len(self.__data) - 1] - data.bid2[0] - 0.01
 
-        data['res_bin'] = pd.qcut(data['residuals'], self.res_retbin, labels=False)
-        data['imb1_bin'] = pd.qcut(data['imb1'], self.imb1_retbin, labels=False)
-        data['imb2_bin'] = pd.qcut(data['imb2'], self.imb2_retbin, labels=False)
+        data[['ask1', 'bid1']] = data[['ask1', 'bid1']] + change1
+        data[['ask2', 'bid2']] = data[['ask2', 'bid2']] + change2
 
-        return data
+        data['mid1'] = (data.bid1 + data.ask1) / 2
+        data['mid2'] = (data.bid2 + data.ask2) / 2
 
-    def _uniform_bin(self, data):
-        data = data.copy()
+        data.time = pd.to_datetime(data.time)
+        data.time += timedelta(hours=5)
 
-        res_retbin = pd.cut(data['residuals'], self.__res_bin, labels=False, retbins=True)[-1]
-        res_retbin[0] = -np.Inf
-        res_retbin[-1] = np.Inf
-        imb1_retbin = pd.cut(data['imb1'], self.__imb1_bin, labels=False, retbins=True)[-1]
-        imb1_retbin[0] = -np.Inf
-        imb1_retbin[-1] = np.Inf
-        imb2_retbin = pd.cut(data['imb2'], self.__imb2_bin, labels=False, retbins=True)[-1]
-        imb2_retbin[0] = -np.Inf
-        imb2_retbin[-1] = np.Inf
+        data = data.set_index('time')
+        data.index = pd.to_datetime(data.index, utc=True)
 
-        self.res_retbin = res_retbin
-        self.imb1_retbin = imb1_retbin
-        self.imb2_retbin = imb2_retbin
+        data['imb1'] = data.bid_size1 / (data.bid_size1 + data.ask_size1)
+        data['imb2'] = data.bid_size2 / (data.bid_size2 + data.ask_size2)
 
-        data['res_bin'] = pd.cut(data['residuals'], self.res_retbin, labels=False)
-        data['imb1_bin'] = pd.cut(data['imb1'], self.imb1_retbin, labels=False)
-        data['imb2_bin'] = pd.cut(data['imb2'], self.imb2_retbin, labels=False)
+        data2 = data[['residuals', 'mid1', 'mid2', 'imb1', 'imb2']].copy()
+
+        data2.index = data.index.shift(-10, freq='S')
+        data2.columns = ['residual_later', 'mid1_later', 'mid2_later', 'imb1_later', 'imb2_later']
+
+        data = pd.merge_asof(data, data2, left_index=True, right_index=True, direction='forward')
+
+        data['pnl'] = data.residual_later - data.residuals  # forward pnl
+        data['mid1_diff'] = data.mid1_later - data.mid1
+        data['mid2_diff'] = data.mid2_later - data.mid2
+        data = data.dropna()
+
+        # data = pd.concat([self.__data, data])
+
+        data.index = pd.to_datetime(data.index, utc=True)
+
+        data['residual_bucket'] = pd.cut(data['residuals'], self.__res_bin, labels=False)
+
+        data['imb1'] = data.bid_size1 / (data.bid_size1 + data.ask_size1)
+        data['imb2'] = data.bid_size2 / (data.bid_size2 + data.ask_size2)
+        data['imb1_bucket'] = pd.cut(data.imb1, self.__imb1_bin, labels=False)
+        data['imb2_bucket'] = pd.cut(data.imb2, self.__imb2_bin, labels=False)
 
         return data
 
@@ -204,22 +180,58 @@ class Preprocess:
                 data['imb2_bin'].astype(str) +
                 data['mid1_diff_bin'].astype(str) +
                 data['mid2_diff_bin'].astype(str)
-        )
+                )
         data['state_later'] = data['state'].shift(-1)
 
         return data
 
-    @staticmethod
-    def _classify_mid_diff(data):
+    def _bucket(self, data):
         data = data.copy()
 
-        data['mid1_diff_bin'] = 2 * (data['mid1_diff'] >= 0)
-        data['mid1_diff_bin'] -= 1 * (data['mid1_diff'] == 0)
+        data['dM1'] = 1 * (data.mid1_diff > 0)
+        data.dM1 -= 1 * (data.mid1_diff < 0)
+        data['dM2'] = 1 * (data.mid2_diff > 0)
+        data.dM2 -= 1 * (data.mid2_diff < 0)
 
-        data['mid2_diff_bin'] = 2 * (data['mid2_diff'] >= 0)
-        data['mid2_diff_bin'] -= 1 * (data['mid2_diff'] == 0)
+        data['residual_bucket'], bins_res = pd.cut(data['residuals'], self.__res_bin, labels=False, retbins=True)
+        data['residual_bucket_later'] = pd.cut(data['residual_later'], bins_res, labels=False)
+
+        data['imb1_bucket'], bins_imb1 = pd.cut(data.imb1, self.__imb1_bin, labels=False, retbins=True)
+        data['imb2_bucket'], bins_imb2 = pd.cut(data.imb2, self.__imb2_bin, labels=False, retbins=True)
+        data['imb1_bucket_later'] = pd.cut(data['imb1_later'], bins_imb1, labels=False)
+        data['imb2_bucket_later'] = pd.cut(data['imb2_later'], bins_imb2, labels=False)
+        data['current_state'] = (
+                data["residual_bucket"].astype(str) +
+                data["imb1_bucket"].astype(str) +
+                data["imb2_bucket"].astype(str)
+        )
+        data['later_state'] = (
+                data["residual_bucket_later"].astype(str) +
+                data["imb1_bucket_later"].astype(str) +
+                data["imb2_bucket_later"].astype(str) +
+                data.dM1.astype(str) +
+                data.dM2.astype(str)
+        )
+
+        x = data.dM1.astype(str) + data.dM2.astype(str)
+        data = data.drop(index=data.index[np.where((x == '-1-1') | (x == '11'))])
 
         return data
+
+    def __get_rows_and_cols(self):
+        cols = list()
+        rows = list()
+
+        for dm in ['00', '10', '-10', '01', '0-1']:
+            for price_relation_d in range(self.__res_bin):
+                for s1_imb_d in range(self.__imb1_bin):
+                    for s2_imb_d in range(self.__imb2_bin):
+                        row_name = f'{price_relation_d}{s1_imb_d}{s2_imb_d}'
+                        cols.append(f'{row_name}{dm}')
+                        if row_name not in rows:
+                            rows.append(row_name)
+
+        return rows, cols
 
     @staticmethod
     def _get_imbalances(data):
@@ -229,17 +241,18 @@ class Preprocess:
 
         return data
 
-    @staticmethod
-    def _markov_matrix(data):
+    def _markov_matrix(self, data):
         """
         Generates the markov transition matrix from the data.
         It takes input dataframe of a returned object from preprocess function.
         """
-        transition_matrix = pd.crosstab(data['state'], data['state_later'], normalize='index')
-        transition_matrix = transition_matrix.reset_index()
-        transition_matrix = transition_matrix.set_index('state')
+        rows, cols = self.__get_rows_and_cols()
+        m4 = pd.DataFrame(0, index=rows, columns=cols)
+        prob_raw = pd.crosstab(data.current_state, data.later_state, normalize='index')  # raw prob table
+        prob = m4.add(prob_raw, fill_value=0)  # complete probability table
+        prob = prob[list(m4.columns)]  # reorder elements
 
-        return transition_matrix
+        return prob
 
     @staticmethod
     def _preprocess(data):
@@ -248,18 +261,55 @@ class Preprocess:
         data = data.set_index('time')
         data = data.drop_duplicates()
 
-        # residual bucket
         data['mid1'] = (data.bid1 + data.ask1) / 2
         data['mid2'] = (data.bid2 + data.ask2) / 2
 
-        data['logmid1'] = np.log(data['mid1'])
-        data['logmid2'] = np.log(data['mid2'])
-
-        data['logbid1'] = np.log(data['bid1'])
-        data['logbid2'] = np.log(data['bid2'])
-        data['logask1'] = np.log(data['ask1'])
-        data['logask2'] = np.log(data['ask2'])
         return data
+
+    def __matrix_Gstar_BC_G1(self, step_forward=5):
+        state_num = self.__res_bin * self.__imb1_bin * self.__imb2_bin
+
+        tm = self.__transition_matrix.iloc[:, :state_num]  # price no change
+
+        s1_up = self.__transition_matrix.iloc[:, state_num:state_num * 2]  # price 1 up
+        s1_up_mat = np.matrix(s1_up)
+
+        s1_down = self.__transition_matrix.iloc[:, state_num * 2:state_num * 3]  # price 1 down
+        s1_down_mat = np.matrix(s1_down)
+
+        s2_up = self.__transition_matrix.iloc[:, state_num * 3:state_num * 4]  # price 2 up
+        s2_up_mat = np.matrix(s2_up)
+
+        s2_down = self.__transition_matrix.iloc[:, state_num * 4:state_num * 5]  # price 2 down
+        s2_down_mat = np.matrix(s2_down)
+
+        Q = np.matrix(tm.to_numpy())  # transient matrix
+        n = Q.shape[0]
+        tick = 0.01
+
+        R = np.zeros((n, 4))
+        R[:, 0] = s1_up.sum(axis=1, skipna=True)
+        R[:, 1] = s1_down.sum(axis=1, skipna=True)
+        R[:, 2] = s2_up.sum(axis=1, skipna=True)
+        R[:, 3] = s2_down.sum(axis=1, skipna=True)
+        R = np.matrix(R)  # absorbing matrix
+
+        T = s1_up_mat + s1_down_mat + s2_up_mat + s2_down_mat  # transaction matrix
+        K = np.matrix([[tick, 0], [-tick, 0], [0, tick], [0, -tick]])
+        G1 = np.linalg.inv(np.identity(n) - Q).dot(R).dot(K)
+        B = np.linalg.inv(np.identity(n) - Q).dot(T)
+        #     T_series =  list(map(np.matrix,[s1_up,s1_down,s2_up,s2_down]))
+
+        Gstar = G1
+        BC = B
+
+        for i in range(step_forward - 1):
+            Gstar = Gstar + BC.dot(G1)
+            BC = BC.dot(B)
+        Gstar = pd.DataFrame(Gstar, index=tm.index, columns=['price1_change_' + str(step_forward) + 'step',
+                                                             'price2_change_' + str(step_forward) + 'step'])
+
+        return Gstar, BC, G1, B, Q, T, R, K
 
     def process(self, out_of_sample=None):
         if out_of_sample:
@@ -271,6 +321,19 @@ class Preprocess:
             raise TypeError('"Data" must be of type str or PosixPath')
         self.__transition_matrix = self._markov_matrix(self.__data)
 
+        Gstar, BC, G1, B, Q, T, R, K = self.__matrix_Gstar_BC_G1()
+
+        self.__data['current_state'] = self.__data['current_state'].astype(str)
+        self.__data['later_state'] = self.__data['later_state'].astype(str)
+
+        self.__data = self.__data.assign(
+                micro1_adj=self.__data.current_state.map(Gstar.price1_change_5step),
+                micro2_adj=self.__data.current_state.map(Gstar.price2_change_5step)
+
+                )
+        self.__data['micro1'] = self.__data.mid1 + self.__data.micro1_adj
+        self.__data['micro2'] = self.__data.mid2 + self.__data.micro2_adj
+
         prob_file = DATA_PATH.joinpath(self.__file_prefix + '_transition_matrix.csv')
         data_file = DATA_PATH.joinpath('Cleaned_' + self.__file_prefix + '.csv')
 
@@ -278,23 +341,23 @@ class Preprocess:
         self.__transition_matrix.to_csv(prob_file)
 
         in_sample_data = Data(
-            data=self.__data,
-            transition_matrix=self.__transition_matrix,
-            res_bins=self.__res_bin,
-            imb1_bins=self.__imb1_bin,
-            imb2_bins=self.__imb2_bin
-        )
+                data=self.__data,
+                transition_matrix=self.__transition_matrix,
+                res_bins=self.__res_bin,
+                imb1_bins=self.__imb1_bin,
+                imb2_bins=self.__imb2_bin
+                )
 
         if out_of_sample is not None:
             out_of_sample_transition_matrix = self._markov_matrix(out_of_sample)
 
             out_of_sample_data = Data(
-                data=out_of_sample,
-                transition_matrix=out_of_sample_transition_matrix,
-                res_bins=self.__res_bin,
-                imb1_bins=self.__imb1_bin,
-                imb2_bins=self.__imb2_bin
-            )
+                    data=out_of_sample,
+                    transition_matrix=out_of_sample_transition_matrix,
+                    res_bins=self.__res_bin,
+                    imb1_bins=self.__imb1_bin,
+                    imb2_bins=self.__imb2_bin
+                    )
 
             return in_sample_data, out_of_sample_data
 

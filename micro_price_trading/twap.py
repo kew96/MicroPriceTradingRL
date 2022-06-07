@@ -20,7 +20,7 @@ class TWAP:
             q_values_file_name='q_values_9_27.csv',
             in_sample_file_name=None,
             out_of_sample_file_name=None
-    ):
+            ):
         self.trade_interval = trade_interval
         self.buy = buy
 
@@ -35,9 +35,9 @@ class TWAP:
             subset.loc[:, 'state'] = subset.loc[:, 'state'].replace(sim.mapping)
 
             self.data = np.reshape(
-                subset.values,
-                (1, subset.shape[0], subset.shape[1])
-            )
+                    subset.values,
+                    (1, subset.shape[0], subset.shape[1])
+                    )
             self.steps_in_day = self.data.shape[1] - 1
         else:
             self.steps_in_day = steps_in_day
@@ -46,8 +46,8 @@ class TWAP:
 
     def base_twap(self, asset):
         indices_to_buy_at = np.array(
-            [idx for idx in range(self.trade_interval, self.steps_in_day + 1, self.trade_interval)]
-        )
+                [idx for idx in range(self.trade_interval, self.steps_in_day + 1, self.trade_interval)]
+                )
 
         avg_prices = self.data[:, indices_to_buy_at, asset].mean(axis=1)
 
@@ -55,8 +55,8 @@ class TWAP:
 
     def random_twap(self, weights=(0.5, 0.5)):
         indices_to_buy_at = np.array(
-            [idx for idx in range(self.trade_interval, self.steps_in_day + 1, self.trade_interval)]
-        )
+                [idx for idx in range(self.trade_interval, self.steps_in_day + 1, self.trade_interval)]
+                )
         random_numbers = np.random.rand(len(indices_to_buy_at))
 
         indices_to_buy_asset_1 = indices_to_buy_at[np.where(random_numbers >= weights[0])[0]]
@@ -71,8 +71,8 @@ class TWAP:
         avg_prices_1, avg_prices_2 = [], []
 
         indices_to_buy_at = np.array(
-            [idx for idx in range(self.trade_interval, self.steps_in_day + 1, self.trade_interval)]
-        )
+                [idx for idx in range(self.trade_interval, self.steps_in_day + 1, self.trade_interval)]
+                )
 
         for sim in self.data:
             if self.buy:
@@ -98,11 +98,11 @@ class TWAP:
                 trade_interval,
                 asset1_buy_prices,
                 asset2_buy_prices
-        ):
+                ):
             intervals = list()
 
-            for idx in range(data.shape[1]//trade_interval+1):
-                new_interval = range(idx*trade_interval, min((idx+1)*trade_interval, steps_in_day))
+            for idx in range(data.shape[1] // trade_interval + 1):
+                new_interval = range(idx * trade_interval, min((idx + 1) * trade_interval, steps_in_day))
                 if new_interval:
                     intervals.append(new_interval)
 
@@ -115,20 +115,20 @@ class TWAP:
                         q_vals = self.q_values.iloc[int(entry[0])].copy()
                         if self.buy:
                             choice = np.argmax(q_vals)
-                            condition1 = q_vals[0]-q_vals[1] > inner_threshold
-                            condition2 = q_vals[1]-q_vals[0] > inner_threshold
+                            condition1 = q_vals[0] - q_vals[1] > inner_threshold
+                            condition2 = q_vals[1] - q_vals[0] > inner_threshold
                         else:
                             choice = np.argmin(q_vals)
                             condition1 = q_vals[0] - q_vals[1] < -inner_threshold
                             condition2 = q_vals[1] - q_vals[0] < -inner_threshold
 
                         if choice == 0 and condition1:
-                            a1_buys.extend([True]+[False]*(self.trade_interval - idx-1))
-                            a2_buys.extend([False]*(self.trade_interval - idx))
+                            a1_buys.extend([True] + [False] * (self.trade_interval - idx - 1))
+                            a2_buys.extend([False] * (self.trade_interval - idx))
                             break
                         elif choice == 1 and condition2:
-                            a1_buys.extend([False]*(self.trade_interval - idx))
-                            a2_buys.extend([True]+[False]*(self.trade_interval - idx-1))
+                            a1_buys.extend([False] * (self.trade_interval - idx))
+                            a2_buys.extend([True] + [False] * (self.trade_interval - idx - 1))
                             break
                         else:
                             a1_buys.append(False)
@@ -156,12 +156,12 @@ class TWAP:
         asset2_prices = manager.list()
 
         part_optimal = partial(
-            _starmap_continuous_twap,
-            steps_in_day=self.steps_in_day,
-            trade_interval=self.trade_interval,
-            asset1_buy_prices=asset1_prices,
-            asset2_buy_prices=asset2_prices
-        )
+                _starmap_continuous_twap,
+                steps_in_day=self.steps_in_day,
+                trade_interval=self.trade_interval,
+                asset1_buy_prices=asset1_prices,
+                asset2_buy_prices=asset2_prices
+                )
 
         args = zip(data_splits, thresholds)
 

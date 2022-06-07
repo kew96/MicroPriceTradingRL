@@ -1,251 +1,266 @@
 import unittest
 
 import numpy as np
-import pandas as pd
 
-from micro_price_trading import PairsTradingHistory, TwoAssetSimulation, Preprocess
+from micro_price_trading.config import BuySell
+
+from micro_price_trading import PairsTradingHistory
+from micro_price_trading.dataclasses.trades import PairsTradingTrade
+from micro_price_trading.dataclasses.portfolios import PairsTradingPortfolio
 
 
 class TestPairsTradingHistory(unittest.TestCase):
 
-    @classmethod
-    def setUpClass(cls) -> None:
-        raw = Preprocess('SH_SDS_data.csv')
-        cls.data = raw.process()
-
     def setUp(self) -> None:
-        self.sim = TwoAssetSimulation(self.data, seed=0)
         self.history = PairsTradingHistory(
-            current_state=self.sim.states.iloc[0],
-            start_allocation=[1000, -500],
-            max_position=2
-        )
+                start_state=np.array(['000', 10, 20], dtype=object),
+                start_cash=100,
+                max_steps=4,
+                start_allocation=(10, -5),
+                max_position=2
+                )
 
     def test_portfolio(self):
-        self.assertEqual(self.history.portfolio, [-500, 1000, -500])
-        self.assertIsInstance(self.history.portfolio_history, np.ndarray)
-        self.assertEqual(self.history.portfolio_history.tolist(), [  # Holds all values
-            [  # Holds current run's values
-                [-500, 1000, -500]  # Holds the positions
-            ]
-        ])
+        target_portfolio = PairsTradingPortfolio(
+                time=0,
+                cash=100,
+                shares=(10, -5),
+                mid_prices=(10, 20),
+                res_imbalance_state='000',
+                trade=None,
+                position=0
+                )
 
-    def test_portfolio_value(self):
-        self.assertEqual(self.history.portfolio_value, 0)
-        self.assertIsInstance(self.history.portfolio_values_history, np.ndarray)
-        self.assertEqual(self.history.portfolio_values_history.tolist(), [[0]])
-
-    def test_shares(self):
-        self.assertEqual(self.history.shares, [1000/self.sim.states.iloc[0, 1], -500/self.sim.states.iloc[0, 2]])
-        self.assertIsInstance(self.history.share_history, np.ndarray)
-        self.assertEqual(self.history.share_history.tolist(), [
-            [
-                [1000/self.sim.states.iloc[0, 1], -500/self.sim.states.iloc[0, 2]]
-            ]
-        ])
-
-    def test_position(self):
-        self.assertEqual(self.history.position, 1)
-        self.assertIsInstance(self.history.positions_history, np.ndarray)
-        self.assertEqual(self.history.positions_history.tolist(), [[1]])
+        self.assertEqual(self.history.current_portfolio, target_portfolio)
 
     def test_readable_action_space(self):
         self.assertIsInstance(self.history.readable_action_space, dict)
-        self.assertEqual(self.history.readable_action_space, {
-            0: 'Short/Long 2x',
-            1: 'Short/Long 1x',
-            2: 'Flat',
-            3: 'Long/Short 1x',
-            4: 'Long/Short 2x'
-        })
+        self.assertEqual(
+            self.history.readable_action_space, {
+                    0: 'Short/Long 2x',
+                    1: 'Short/Long 1x',
+                    2: 'Flat',
+                    3: 'Long/Short 1x',
+                    4: 'Long/Short 2x'
+                    }
+            )
 
-    def test_update_portfolio(self):
-        current_portfolio = [-5, 10, -5]
-        shares = [1, -1]
-        state = pd.Series({'states': 10, 'mid_1': 5, 'mid_2': 10})
+    def test_update_history_single(self):
+        p1 = self.history.current_portfolio
+        p2 = p1.copy_portfolio('---', (30, 40))
+        p3 = p2.copy_portfolio('---', (5, 10))
 
-        res1 = self.history._update_portfolio(current_portfolio, shares, state)
+        self.history._update_history(p1)
+        self.history._update_history(p2)
+        self.history._update_history(p3)
 
-        current_portfolio = [5, -10, 5]
-        shares = [2, -3]
-        state = pd.Series({'states': 42, 'mid_1': 2, 'mid_2': 3})
+        self.assertEqual(self.history._portfolios, [[p1, p2, p3]])
 
-        res2 = self.history._update_portfolio(current_portfolio, shares, state)
+    def test_update_history_batch(self):
+        p1 = self.history.current_portfolio
+        p2 = p1.copy_portfolio('300', (30, 40), forced_action=True)
+        p3 = p2.copy_portfolio('111', (5, 10), forced_action=True)
 
-        self.assertEqual(res1, [-5, 5, -10])
-        self.assertEqual(res2, [5, 4, -9])
+        self.history._update_history(p1, np.array([['300', 30, 40], ['111', 5, 10]], dtype=object))
 
-    def update_history_helper(self):
-        portfolio1 = [0, 1, 2]
-        shares1 = [1, 2]
-        position1 = 1
-        steps1 = 2
-        trade_index1 = 3
-        long_short1 = True
-        period_prices1 = pd.DataFrame({'mid_1': [1, 2], 'mid_2': [3, 4]})
+        self.assertEqual(self.history._portfolios, [[p1, p2, p3]])
 
-        portfolio2 = [1, 2, 3]
-        shares2 = [2, 1]
-        position2 = 0
-        steps2 = 1
+    def test_reset_history(self):
+        target_portfolio = PairsTradingPortfolio(
+                time=0,
+                cash=100,
+                shares=(10, -5),
+                mid_prices=(2, 4),
+                res_imbalance_state='400',
+                trade=None,
+                position=0
+                )
 
-        portfolio3 = [0, 1, 2]
-        shares3 = [1, 2]
-        position3 = 1
-        steps3 = 1
+        self.history._reset_history(np.array(['400', 2, 4], dtype=object))
 
-        portfolio4 = [1, 2, 3]
-        shares4 = [2, 1]
-        position4 = 2
-        steps4 = 3
-        trade_index4 = 5
-        long_short4 = False
-        period_prices4 = pd.DataFrame({'mid_1': [1, 2, 3], 'mid_2': [3, 4, 5]})
+        self.assertEqual(self.history.current_portfolio, target_portfolio)
+        self.assertEqual(len(self.history._portfolios), 2)
 
-        self.history._update_history(portfolio1, shares1, position1, steps1, trade_index1, long_short1, period_prices1)
-        self.history._update_history(portfolio2, shares2, position2, steps2)
-        self.history._update_history(portfolio3, shares3, position3, steps3)
-        self.history._update_history(portfolio4, shares4, position4, steps4, trade_index4, long_short4, period_prices4)
+    def add_to_history(self, num_to_add):
+        portfolio = self.history.current_portfolio
+        for _ in range(num_to_add - 1):
+            self.history._update_history(portfolio)
+            portfolio = portfolio.copy_portfolio(0, (1, 2))
+        self.history._update_history(portfolio)
 
-    def test_update_history(self):
-        self.update_history_helper()
+    def fill_history(self):
+        self.add_to_history(5)
+        self.history._reset_history([4, 6, 7])
+        self.add_to_history(5)
+        self.history._reset_history([4, 6, 7])
+        self.add_to_history(5)
+        self.history._reset_history([4, 6, 7])
+        self.add_to_history(2)
 
-        expected_portfolio_history = [[
-                [-500, 1000, -500],
-                [0, 1, 6],  # 1
-                [0, 2, 8],  # 1
-                [1, 2, 3],  # 2
-                [0, 1, 2],  # 3
-                [1, 2, 3],  # 4
-                [1, 4, 4],  # 4
-                [1, 6, 5],  # 4
-        ]]
-        self.assertEqual(self.history.portfolio_history.tolist(), expected_portfolio_history)
+    def test_portfolio_history(self):
+        self.fill_history()
 
-        expected_portfolio_values = [[
-            0,  # 0
-            7,  # 1
-            10,  # 1
-            6,  # 2
-            3,  # 3
-            6,  # 4
-            9,  # 4
-            12,  # 4
-        ]]
-        self.assertEqual(self.history.portfolio_values_history.tolist(), expected_portfolio_values)
+        self.assertEqual(self.history.portfolio_history.shape, (3, 5))
 
-        expected_share_history = [[
-            [1000 / self.sim.states.iloc[0, 1], -500 / self.sim.states.iloc[0, 2]],  # 0
-            [1, 2],  # 1
-            [1, 2],  # 1
-            [2, 1],  # 2
-            [1, 2],  # 3
-            [2, 1],  # 4
-            [2, 1],  # 4
-            [2, 1],  # 4
-        ]]
-        self.assertEqual(self.history.share_history.tolist(), expected_share_history)
+    def test_share_history(self):
+        self.fill_history()
 
-        expected_positions_history = [[
-            1,  # 0
-            1,  # 1
-            1,  # 1
-            0,  # 2
-            1,  # 3
-            2,  # 4
-            2,  # 4
-            2,  # 4
-        ]]
-        self.assertEqual(self.history.positions_history.tolist(), expected_positions_history)
+        self.assertEqual(self.history.share_history.shape, (3, 5, 2))
 
-        expected_trade_indices = [[
-            0,  # 0
-            3,  # 1
-            5,  # 4
-        ]]
-        self.assertEqual(self.history.trade_indices_history.tolist(), expected_trade_indices)
+    def test_cash_history(self):
+        self.fill_history()
 
-        expected_long_short_indices = [[
-            0,  # 0
-            3,  # 1
-        ]]
-        self.assertEqual(self.history.long_short_indices_history.tolist(), expected_long_short_indices)
+        self.assertEqual(self.history.cash_history.shape, (3, 5))
 
-        expected_short_long_indices = [[
-            5,  # 4
-        ]]
-        self.assertEqual(self.history.short_long_indices_history.tolist(), expected_short_long_indices)
+    def test_asset_paths(self):
+        self.fill_history()
 
-    def test_reset(self):
-        self.update_history_helper()
-        self.history._reset_history(self.sim.states.iloc[0])
-        self.update_history_helper()
+        self.assertEqual(self.history.asset_paths.shape, (3, 5, 2))
 
-        expected_portfolio_history = [[
-            [-500, 1000, -500],
-            [0, 1, 6],  # 1
-            [0, 2, 8],  # 1
-            [1, 2, 3],  # 2
-            [0, 1, 2],  # 3
-            [1, 2, 3],  # 4
-            [1, 4, 4],  # 4
-            [1, 6, 5],  # 4
-        ]]*2
-        self.assertEqual(self.history.portfolio_history.tolist(), expected_portfolio_history)
+    def test_positions_history(self):
+        self.fill_history()
 
-        expected_portfolio_values = [[
-            0,  # 0
-            7,  # 1
-            10,  # 1
-            6,  # 2
-            3,  # 3
-            6,  # 4
-            9,  # 4
-            12,  # 4
-        ]]*2
-        self.assertEqual(self.history.portfolio_values_history.tolist(), expected_portfolio_values)
+        self.assertEqual(self.history.positions_history.shape, (3, 5))
 
-        expected_share_history = [[
-            [1000 / self.sim.states.iloc[0, 1], -500 / self.sim.states.iloc[0, 2]],  # 0
-            [1, 2],  # 1
-            [1, 2],  # 1
-            [2, 1],  # 2
-            [1, 2],  # 3
-            [2, 1],  # 4
-            [2, 1],  # 4
-            [2, 1],  # 4
-        ]]*2
-        self.assertEqual(self.history.share_history.tolist(), expected_share_history)
+    def test_portfolio_value_history(self):
+        self.fill_history()
 
-        expected_positions_history = [[
-            1,  # 0
-            1,  # 1
-            1,  # 1
-            0,  # 2
-            1,  # 3
-            2,  # 4
-            2,  # 4
-            2,  # 4
-        ]]*2
-        self.assertEqual(self.history.positions_history.tolist(), expected_positions_history)
+        self.assertEqual(self.history.portfolio_value_history.shape, (3, 5))
 
-        expected_trade_indices = [[
-            0,  # 0
-            3,  # 1
-            5,  # 4
-        ]]*2
-        self.assertEqual(self.history.trade_indices_history.tolist(), expected_trade_indices)
+    @staticmethod
+    def fill_history_with_trades():
+        history = PairsTradingHistory(
+                start_state=np.array(['0', 10, 20]),
+                start_cash=100,
+                max_steps=4,
+                start_allocation=(10, -5),
+                max_position=2
+                )
 
-        expected_long_short_indices = [[
-            0,  # 0
-            3,  # 1
-        ]]*2
-        self.assertEqual(self.history.long_short_indices_history.tolist(), expected_long_short_indices)
+        history._update_history(
+                history.current_portfolio,
+                np.array([
+                    ['1', 1, 1],
+                    ['0', 1, 1],
+                    ['1', 1, 1],
+                    ['2', 1, 1]
+                    ], dtype=object),
+                forced_actions=False
+                )
+        history._reset_history(['0', 2, 2])
 
-        expected_short_long_indices = [[
-            5,  # 4
-        ]]*2
-        self.assertEqual(self.history.short_long_indices_history.tolist(), expected_short_long_indices)
+        trade1 = PairsTradingTrade(
+                asset=0,
+                shares=5,
+                execution_price=10,
+                total_cost=10,
+                buy_sell=BuySell.Buy,
+                mid_price=10
+                )
+        trade2 = PairsTradingTrade(
+                asset=1,
+                shares=5,
+                execution_price=10,
+                total_cost=10,
+                buy_sell=BuySell.Sell,
+                mid_price=10
+                )
+
+        portfolio1 = PairsTradingPortfolio(
+                time=0,
+                cash=10,
+                shares=(10, 5),
+                mid_prices=(10, 15),
+                res_imbalance_state='0',
+                trade=(trade1, trade2),
+                position=1
+                )
+
+        portfolio2 = portfolio1.copy_portfolio('0', (1, 2))
+        portfolio2.trade = (trade1, trade2)
+        portfolio2.position = -1
+
+        portfolio3 = portfolio2.copy_portfolio('1', (1, 2))
+        portfolio3.trade = (trade1, trade2)
+        portfolio3.position = 2
+
+        history._update_history(portfolio1)
+        history._update_history(portfolio2)
+
+        history._update_history(
+                portfolio3, np.array([
+                    ['2', 1, 1],
+                    ['2', 1, 1]
+                    ], dtype=object)
+                )
+        history._reset_history(['1', 3, 3])
+
+        history._update_history(portfolio1)
+
+        history._update_history(
+                portfolio2, np.array([
+                    ['1', 1, 1],
+                    ['2', 1, 1],
+                    ['2', 1, 1]
+                    ], dtype=object)
+                )
+
+        return history
+
+    def test_collapse_state_trades(self):
+
+        history = self.fill_history_with_trades()
+
+        history._reset_history(['1', 3, 3])
+
+        target = {
+            '0': {
+                0: 2,
+                1: 2,
+                -1: 2
+                },
+            '1': {
+                0: 2,
+                2: 1
+                },
+            '2': {
+                0: 1
+                }
+            }
+
+        self.assertEqual(history._collapse_state_trades(3), target)
+
+    def test_num_trades_in_period(self):
+        history = self.fill_history_with_trades()
+
+        target1 = history._num_trades_in_period(4)
+        target2 = history._num_trades_in_period(3)
+
+        self.assertEqual(target1, 1)
+        self.assertEqual(target2, 0)
+
+    def test_long_short_indices(self):
+        history = self.fill_history_with_trades()
+
+        result = history.long_short_indices
+
+        target = [
+            [np.nan] * 5,
+            [0, 1, 2] + [np.nan] * 2,
+            [0, 1] + [np.nan] * 3
+            ]
+
+        np.testing.assert_array_equal(result, np.array(target))
+
+    def test_short_long_indices(self):
+        history = self.fill_history_with_trades()
+
+        result = history.short_long_indices
+
+        target = np.zeros((3, 5))
+        target[:] = np.nan
+
+        np.testing.assert_array_equal(result, np.array(target))
 
 
 if __name__ == '__main__':

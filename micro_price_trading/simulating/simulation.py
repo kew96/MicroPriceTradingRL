@@ -8,13 +8,14 @@ from micro_price_trading.preprocessing import Data
 
 class Simulation(ABC):
 
-    def __init__(
-            self,
-            data: Data,
-            steps: int = 1_000,
-            seed: Optional[int] = None
-    ):
+    def __init__(self,
+                 data: Data,
+                 steps: int = 1_000,
+                 randomness: float = 1.0,
+                 seed: Optional[int] = None):
         self._rng = self._set_seed(seed)
+
+        self.randomness = randomness
 
         self.df = data.data
         self.prob = data.transition_matrix
@@ -24,23 +25,41 @@ class Simulation(ABC):
 
         self.ite = steps or len(data) // 2 - 1
 
-        self.mapping = self._get_mapping()
-        self._reverse_mapping = {v: k for k, v in self.mapping.items()}
         self.states = self._simulate()
+        self.state_index = 0
         self.current_state = self.states[0, :]
+
+        self.terminal = False
+
+    @property
+    def res_bins(self):
+        return self._res_bins
+
+    @property
+    def imb1_bins(self):
+        return self._imb1_bins
+
+    @property
+    def imb2_bins(self):
+        return self._imb2_bins
+
+    def move_state(self, steps: int = 1) -> None:
+        self.state_index += steps
+        if self.state_index > self.ite:
+            self.state_index = self.ite
+            self.terminal = True
+        self.current_state = self.states[self.state_index, :]
 
     @abstractmethod
     def _simulate(self):
         raise NotImplementedError
 
-    @staticmethod
-    @abstractmethod
-    def _get_mapping():
-        raise NotImplementedError
-
     @abstractmethod
     def _reset_simulation(self):
-        raise NotImplementedError
+        self._last_states = self.states.copy()
+        self.state_index = 0
+        self.states = self._simulate()
+        self.terminal = False
 
     @staticmethod
     def _set_seed(seed):
