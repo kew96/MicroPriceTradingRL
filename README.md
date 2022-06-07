@@ -18,6 +18,7 @@ I have carried on cleaning up the existing repository (this is a copy of our ori
 to find the broken piece in the overall framework while pushing myself to continue learning about reinforcement learning.
 
 ## Next Steps/Future Work
+- [ ] Setup GitHub Actions for CI/CD of running tests
 - [ ] Revert the simulation framework to the previous version while maintaining its currently flexibility.
 - [ ] Make project easier to run locally
 - [ ] Clean up the inheritance hierarchy. Some of this should be inherited while other classes should be passed as
