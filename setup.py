@@ -14,7 +14,8 @@ except FileNotFoundError:
     REQUIRES = list()
 
 setup(
-        name='micro_price_trading',
-        version='0.0.2',
-        install_requires=REQUIRES
-        )
+    name='micro_price_trading',
+    version='0.0.2',
+    install_requires=REQUIRES,
+    packages=['micro_price_trading']
+)
